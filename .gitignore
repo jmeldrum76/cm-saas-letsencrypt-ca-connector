@@ -1,0 +1,34 @@
+# Build output
+output/
+.cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Docker
+buildx-digest.json
+manifest_with_image.json
+manifest.create.json
+manifest.update.json
+
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test
+*.test
+*.out
+coverage.html
+
+# Local ACME account keys / secrets (never commit)
+*.account.key
+*.pem
+!testdata/**/*.pem
+.env
+.env.local

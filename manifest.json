@@ -1,0 +1,356 @@
+{
+  "_comment": "CA connector for Let's Encrypt via the dns-persist-01 challenge. Domain control uses a standing _validation-persist TXT record (JIT validation); issuance never depends on DNS access. DCV mode 'manual' = the customer publishes the record (connector makes ZERO DNS calls); 'auto' = the connector publishes it once via a DNS provider (Route 53).",
+  "_comment_conditional_ui": "TODO: add x-rule (effect SHOW) to reveal dnsProvider/hostedZoneId/accessKeyId/secretAccessKey only when configuration.dcvMode == 'auto'. Validate in https://login.venafi.cloud/manifest-simulator/ca-connector before release. Until then these auto-mode fields are always shown and optional.",
+  "name": "Let's Encrypt (dns-persist-01) CA Connector",
+  "description": "Issues certificates from Let's Encrypt using the ACME dns-persist-01 challenge. Domain control is established by a persistent _validation-persist DNS record; issuance never depends on DNS access (manual mode makes zero DNS calls).",
+  "pluginType": "CA",
+  "workTypes": [
+    "CERTIFICATE_IMPORT",
+    "ISSUANCE"
+  ],
+  "domainSchema": {
+    "connection": {
+      "type": "object",
+      "properties": {
+        "configuration": {
+          "type": "object",
+          "properties": {
+            "directoryUrl": {
+              "type": "string",
+              "default": "https://acme-staging-v02.api.letsencrypt.org/directory",
+              "x-labelLocalizationKey": "directoryUrl.label",
+              "x-rank": 0
+            },
+            "issuerDomain": {
+              "type": "string",
+              "default": "letsencrypt.org",
+              "x-labelLocalizationKey": "issuerDomain.label",
+              "x-rank": 1
+            },
+            "contact": {
+              "type": "string",
+              "x-labelLocalizationKey": "contact.label",
+              "x-rank": 2
+            },
+            "dcvMode": {
+              "type": "string",
+              "enum": ["manual", "auto"],
+              "default": "manual",
+              "x-labelLocalizationKey": "dcvMode.label",
+              "x-rank": 3
+            },
+            "dnsProvider": {
+              "type": "string",
+              "enum": ["route53"],
+              "default": "route53",
+              "x-labelLocalizationKey": "dnsProvider.label",
+              "x-rank": 4
+            },
+            "hostedZoneId": {
+              "type": "string",
+              "x-labelLocalizationKey": "hostedZoneId.label",
+              "x-rank": 5
+            }
+          },
+          "required": ["directoryUrl", "dcvMode"]
+        },
+        "credentials": {
+          "type": "object",
+          "properties": {
+            "accountKey": {
+              "type": "string",
+              "x-encrypted": true,
+              "x-labelLocalizationKey": "accountKey.label",
+              "x-rank": 0
+            },
+            "accessKeyId": {
+              "type": "string",
+              "x-encrypted": true,
+              "x-labelLocalizationKey": "accessKeyId.label",
+              "x-rank": 1
+            },
+            "secretAccessKey": {
+              "type": "string",
+              "x-encrypted": true,
+              "x-controlOptions": {
+                "password": true,
+                "showPasswordLabel": "secretAccessKey.show",
+                "hidePasswordLabel": "secretAccessKey.hide"
+              },
+              "x-labelLocalizationKey": "secretAccessKey.label",
+              "x-rank": 2
+            }
+          },
+          "required": ["accountKey"]
+        }
+      },
+      "required": ["configuration", "credentials"]
+    },
+    "productOption": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "types": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["SSL"], "default": "SSL" }
+        },
+        "productDetails": { "$ref": "#/domainSchema/productDetails" }
+      },
+      "required": ["name", "types"]
+    },
+    "productDetails": {
+      "type": "object",
+      "properties": {
+        "profileId": { "type": "string" },
+        "profileName": { "type": "string" },
+        "trustType": { "type": "string" },
+        "signatureAlgorithm": { "type": "string" },
+        "allowedKeySizes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "product": {
+      "type": "object",
+      "properties": {}
+    },
+    "orderDetails": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED"],
+          "default": "PENDING"
+        },
+        "certificateId": { "type": "string" },
+        "errorMessage": { "type": "string" }
+      },
+      "required": ["id", "status"]
+    },
+    "certificateDetails": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["PENDING", "REQUESTED", "ISSUED", "FAILED"],
+          "default": "PENDING"
+        },
+        "errorMessage": { "type": "string" },
+        "certificate": { "type": "string" },
+        "chain": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["id", "status"]
+    },
+    "importOption": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "settings": {
+          "type": "object",
+          "properties": { "profileId": { "type": "string" } }
+        }
+      },
+      "required": ["name"]
+    },
+    "importConfiguration": {
+      "type": "object",
+      "properties": {
+        "includeExpiredCertificates": {
+          "type": "boolean",
+          "x-labelLocalizationKey": "includeExpiredCertificates.label",
+          "x-controlOptions": {
+            "toggledLabel": "includeExpiredCertificates.label",
+            "untoggledLabel": "includeExpiredCertificates.label"
+          },
+          "x-rank": 1
+        }
+      }
+    },
+    "certificateRevocationData": {
+      "type": "object",
+      "properties": {
+        "serialNumber": { "type": "string" },
+        "caCertificateIdentifier": { "type": "string" },
+        "caOrderIdentifier": { "type": "string" },
+        "fingerprint": { "type": "string" },
+        "issuerDN": { "type": "string" },
+        "certificateContent": { "type": "string" }
+      },
+      "anyOf": [
+        { "required": ["certificateContent"] },
+        { "required": ["serialNumber"] }
+      ]
+    }
+  },
+  "localizationResources": {
+    "en": {
+      "directoryUrl": { "label": "ACME Directory URL (Pebble / LE staging / LE production)" },
+      "issuerDomain": { "label": "Issuer Domain Name (validated against the dns-persist-01 challenge)" },
+      "contact": { "label": "Account Contact (optional, e.g. mailto:ops@example.com)" },
+      "dcvMode": { "label": "DCV Mode — manual (customer publishes record) or auto (publish via DNS provider)" },
+      "dnsProvider": { "label": "Auto mode: DNS Provider" },
+      "hostedZoneId": { "label": "Auto mode: Hosted Zone ID" },
+      "accountKey": { "label": "ACME Account Key (PEM, ECDSA P-256)" },
+      "accessKeyId": { "label": "Auto mode: AWS Access Key ID" },
+      "secretAccessKey": { "label": "Auto mode: AWS Secret Access Key", "show": "Show", "hide": "Hide" },
+      "includeExpiredCertificates": { "label": "Include expired certificates" }
+    }
+  },
+  "hooks": {
+    "mapping": {
+      "testConnection": {
+        "path": "/v1/testconnection",
+        "request": {
+          "type": "object",
+          "properties": { "connection": { "$ref": "#/domainSchema/connection" } }
+        },
+        "response": {
+          "type": "object",
+          "properties": {
+            "result": { "type": "string", "enum": ["SUCCESS", "FAILED"], "default": "FAILED" },
+            "message": { "type": "string" }
+          },
+          "required": ["result"]
+        }
+      },
+      "getOptions": {
+        "path": "/v1/getoptions",
+        "request": {
+          "type": "object",
+          "properties": { "connection": { "$ref": "#/domainSchema/connection" } }
+        },
+        "response": {
+          "type": "object",
+          "properties": {
+            "productOptions": { "type": "array", "items": { "$ref": "#/domainSchema/productOption" } },
+            "importOptions": { "type": "array", "items": { "$ref": "#/domainSchema/importOption" } }
+          }
+        }
+      },
+      "validateProduct": {
+        "path": "/v1/validateproduct",
+        "request": {
+          "type": "object",
+          "properties": {
+            "connection": { "$ref": "#/domainSchema/connection" },
+            "name": { "type": "string" },
+            "product": { "$ref": "#/domainSchema/product" }
+          }
+        },
+        "response": {
+          "type": "object",
+          "properties": {
+            "errors": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "attributeName": { "type": "string" },
+                  "attributeValue": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "requestCertificate": {
+        "path": "/v1/requestcertificate",
+        "request": {
+          "type": "object",
+          "properties": {
+            "connection": { "$ref": "#/domainSchema/connection" },
+            "validitySeconds": { "type": "int" },
+            "productOptionName": { "type": "string" },
+            "product": { "$ref": "#/domainSchema/product" },
+            "pkcs10Request": { "type": "string" },
+            "productDetails": { "$ref": "#/domainSchema/productDetails" }
+          }
+        },
+        "response": {
+          "type": "object",
+          "properties": {
+            "orderDetails": { "$ref": "#/domainSchema/orderDetails" },
+            "certificateDetails": { "$ref": "#/domainSchema/certificateDetails" }
+          }
+        }
+      },
+      "checkOrder": {
+        "path": "/v1/checkorder",
+        "request": {
+          "type": "object",
+          "properties": {
+            "connection": { "$ref": "#/domainSchema/connection" },
+            "id": { "type": "string" }
+          }
+        },
+        "response": { "$ref": "#/domainSchema/orderDetails" }
+      },
+      "checkCertificate": {
+        "path": "/v1/checkcertificate",
+        "request": {
+          "type": "object",
+          "properties": {
+            "connection": { "$ref": "#/domainSchema/connection" },
+            "id": { "type": "string" }
+          }
+        },
+        "response": { "$ref": "#/domainSchema/certificateDetails" }
+      },
+      "importCertificates": {
+        "path": "/v1/importcertificates",
+        "request": {
+          "type": "object",
+          "properties": {
+            "connection": { "$ref": "#/domainSchema/connection" },
+            "option": { "$ref": "#/domainSchema/importOption" },
+            "configuration": { "$ref": "#/domainSchema/importConfiguration" },
+            "lastProcessedCertificateId": { "type": "string", "default": "0" },
+            "batchSize": { "type": "int" }
+          }
+        },
+        "response": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "enum": ["UNCOMPLETED", "COMPLETED"] },
+            "lastProcessedCertificateId": { "type": "string" },
+            "certificates": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "certificate": { "type": "string" },
+                  "chain": { "type": "array", "items": { "type": "string" } }
+                },
+                "required": ["certificate"]
+              }
+            }
+          },
+          "required": ["status", "lastProcessedCertificateId"]
+        }
+      },
+      "revokeCertificate": {
+        "path": "/v1/revokecertificate",
+        "request": {
+          "type": "object",
+          "properties": {
+            "connection": { "$ref": "#/domainSchema/connection" },
+            "certificateRevocationData": { "$ref": "#/domainSchema/certificateRevocationData" },
+            "reason": { "type": "int", "minimum": 0, "maximum": 10 }
+          },
+          "required": ["connection", "certificateRevocationData", "reason"]
+        },
+        "response": {
+          "type": "object",
+          "properties": {
+            "revocationStatus": { "type": "string", "enum": ["SUBMITTED", "FAILED"] },
+            "errorMessage": { "type": "string" }
+          },
+          "required": ["revocationStatus"]
+        }
+      }
+    },
+    "requestConverters": ["arguments-decrypter"]
+  }
+}
