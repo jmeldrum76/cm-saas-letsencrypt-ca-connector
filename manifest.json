@@ -1,6 +1,6 @@
 {
   "_comment": "CA connector for Let's Encrypt via the dns-persist-01 challenge. Domain control uses a standing _validation-persist TXT record (JIT validation); issuance never depends on DNS access. DCV mode 'manual' = the customer publishes the record (connector makes ZERO DNS calls); 'auto' = the connector publishes it once via a DNS provider (Route 53).",
-  "_comment_conditional_ui": "TODO: add x-rule (effect SHOW) to reveal dnsProvider/hostedZoneId/accessKeyId/secretAccessKey only when configuration.dcvMode == 'auto'. Validate in https://login.venafi.cloud/manifest-simulator/ca-connector before release. Until then these auto-mode fields are always shown and optional.",
+  "_comment_conditional_ui": "Auto-mode config fields (dnsProvider, hostedZoneId) use x-rule (effect SHOW) scoped to dcvMode=='auto' (same-object scope, per the framework pattern). The auto-mode CREDENTIAL fields (accessKeyId, secretAccessKey) live in a sibling object (credentials) and are left always-shown because cross-object x-rule scoping is unverified. Validate all conditional behavior in https://login.venafi.cloud/manifest-simulator/ca-connector before release.",
   "name": "Let's Encrypt (dns-persist-01) CA Connector",
   "description": "Issues certificates from Let's Encrypt using the ACME dns-persist-01 challenge. Domain control is established by a persistent _validation-persist DNS record; issuance never depends on DNS access (manual mode makes zero DNS calls).",
   "pluginType": "CA",
@@ -44,12 +44,20 @@
               "enum": ["route53"],
               "default": "route53",
               "x-labelLocalizationKey": "dnsProvider.label",
-              "x-rank": 4
+              "x-rank": 4,
+              "x-rule": {
+                "effect": "SHOW",
+                "condition": { "scope": "#/properties/dcvMode", "schema": { "const": "auto" } }
+              }
             },
             "hostedZoneId": {
               "type": "string",
               "x-labelLocalizationKey": "hostedZoneId.label",
-              "x-rank": 5
+              "x-rank": 5,
+              "x-rule": {
+                "effect": "SHOW",
+                "condition": { "scope": "#/properties/dcvMode", "schema": { "const": "auto" } }
+              }
             }
           },
           "required": ["directoryUrl", "dcvMode"]

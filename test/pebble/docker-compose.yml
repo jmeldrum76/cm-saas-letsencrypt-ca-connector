@@ -1,0 +1,34 @@
+# Local offline ACME tier: Pebble (an RFC 8555 test CA that supports dns-persist-01) plus
+# pebble-challtestsrv (a mock DNS server with an HTTP API to set TXT records). Use this to run the
+# real ACME protocol against a local CA with no Let's Encrypt / AWS dependency.
+#
+#   docker compose -f test/pebble/docker-compose.yml up -d
+#   # publish the standing record into challtestsrv, e.g.:
+#   curl -X POST http://localhost:8055/set-txt -d '{"host":"_validation-persist.example.com.","value":"letsencrypt.org; accounturi=<uri>"}'
+#   # then run the e2e against Pebble (skip TLS verify on the test CA):
+#   ACME_STAGING=1 ACME_DIRECTORY_URL=https://localhost:14000/dir \
+#     ACME_ISSUER_DOMAIN=letsencrypt.org go test ./test/e2e/ -run TestEndToEndIssuance -v
+#
+# NOTE: Pebble uses a self-signed CA on :14000. The connector's ACME client must trust it for a
+# real Pebble run (set the LEGO/Pebble CA via the client's HTTPClient, or run with an http client
+# that loads test/pebble/certs). For pure offline unit coverage without Docker, the in-repo mock
+# ACME server in internal/app/service/issuance_test.go already exercises the order flow.
+version: "3"
+services:
+  pebble:
+    image: ghcr.io/letsencrypt/pebble:latest
+    command: -config /test/config/pebble-config.json -dnsserver challtestsrv:8053
+    ports:
+      - 14000:14000   # ACME directory
+      - 15000:15000   # management
+    environment:
+      - PEBBLE_VA_NOSLEEP=1
+      - PEBBLE_VA_ALWAYS_VALID=0
+    depends_on:
+      - challtestsrv
+  challtestsrv:
+    image: ghcr.io/letsencrypt/pebble-challtestsrv:latest
+    command: -defaultIPv6 "" -defaultIPv4 ""
+    ports:
+      - 8055:8055     # HTTP management API (set-txt, etc.)
+      - 8053:8053/udp # DNS
