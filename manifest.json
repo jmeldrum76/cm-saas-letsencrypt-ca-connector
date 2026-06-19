@@ -25,12 +25,6 @@
               "x-labelLocalizationKey": "directoryUrl.label",
               "x-rank": 0
             },
-            "issuerDomain": {
-              "type": "string",
-              "default": "letsencrypt.org",
-              "x-labelLocalizationKey": "issuerDomain.label",
-              "x-rank": 1
-            },
             "contact": {
               "type": "string",
               "x-labelLocalizationKey": "contact.label",
@@ -186,7 +180,6 @@
         "production": "Let's Encrypt Production (acme-v02)",
         "staging": "Let's Encrypt Staging (acme-staging-v02)"
       },
-      "issuerDomain": { "label": "Issuer Domain Name" },
       "contact": { "label": "Account Contact (optional, e.g. mailto:ops@example.com)" },
       "dnsProvider": {
         "label": "DNS Provider",
