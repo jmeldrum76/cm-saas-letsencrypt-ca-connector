@@ -33,9 +33,10 @@ type Configuration struct {
 	DNSProvider string `json:"dnsProvider"`
 	// HostedZoneID is the auto-mode DNS hosted zone (e.g. a Route 53 zone ID). Empty in manual mode.
 	HostedZoneID string `json:"hostedZoneId"`
-	// VerificationDomain is an optional manual-mode field: after the domain owner publishes the
-	// standing record, Test Connection looks it up at this domain to confirm it is live.
-	VerificationDomain string `json:"verificationDomain"`
+	// VerificationDomains is a manual-mode list (newline/comma/space separated) of the customer's
+	// domains. Test Connection confirms every _validation-persist.<domain> record is live and bound
+	// to this account; all must pass for success.
+	VerificationDomains string `json:"verificationDomains"`
 }
 
 // Credentials holds secret material. Every field is marked x-encrypted in the manifest.

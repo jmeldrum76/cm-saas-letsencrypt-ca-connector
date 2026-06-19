@@ -8,37 +8,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cmsaas-connectors/cm-saas-letsencrypt-ca-connector/internal/acme"
 	"github.com/cmsaas-connectors/cm-saas-letsencrypt-ca-connector/internal/app/domain"
 	"github.com/cmsaas-connectors/cm-saas-letsencrypt-ca-connector/internal/record"
 	"go.uber.org/zap"
 )
 
 // TestConnection registers/reuses the ACME account, then:
-//   - auto mode (a DNS provider selected): also validates the DNS provider credentials.
-//   - manual / DNS-persist mode: returns the account URI + the exact standing record to hand to
-//     the domain owner. If a Verification Domain is given, it checks DNS that the record is live.
+//   - auto mode (a DNS provider selected): validates the DNS provider credentials/zone.
+//   - manual / DNS-persist mode: confirms every domain listed in Verification Domains has a live
+//     _validation-persist record bound to THIS account. All must pass for a green success; any miss
+//     returns a FAILED message naming the domains still outstanding (CM renders failure text, so the
+//     operator sees exactly what to fix, then Re-Test). The operator pastes the domain list after the
+//     customer publishes the records the onboarding utility produced.
 func (s *Service) TestConnection(conn domain.Connection) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
-	// Bootstrap: if no account key was supplied, generate one, register the ACME account, and hand
-	// the key back for the admin to paste in and save. This only fires on a blank field (initial
-	// setup); once saved, the key is reused on every call. We warn loudly because generating a new
-	// key after standing records exist creates a NEW account URI and orphans every published record.
-	bootstrapped := false
-	if strings.TrimSpace(conn.Credentials.AccountKey) == "" {
-		key, err := acme.GenerateAccountKey()
-		if err != nil {
-			return "", err
-		}
-		pemBytes, err := key.PEM()
-		if err != nil {
-			return "", err
-		}
-		conn.Credentials.AccountKey = string(pemBytes)
-		bootstrapped = true
-	}
 
 	client, err := buildClient(conn)
 	if err != nil {
@@ -53,13 +37,6 @@ func (s *Service) TestConnection(conn domain.Connection) (string, error) {
 		zap.String("accountURI", uri),
 		zap.String("dnsProvider", conn.Configuration.DNSProvider),
 	)
-
-	if bootstrapped {
-		return fmt.Sprintf("No ACME Account Key was set, so the connector generated one and registered ACME account %s. "+
-			"COPY the key below into the 'ACME Account Key' field and Save, then Test Connection again. "+
-			"Back it up: generating a new key later starts a new account and orphans every standing record you have published.\n\n%s",
-			uri, conn.Credentials.AccountKey), nil
-	}
 
 	// Auto mode: a DNS provider is selected — validate its credentials/zone too.
 	if isAutoMode(conn) {
@@ -78,28 +55,74 @@ func (s *Service) TestConnection(conn domain.Connection) (string, error) {
 			uri, conn.Configuration.DNSProvider), nil
 	}
 
-	// Manual / DNS-persist mode: with a Verification Domain, confirm the standing record is live.
-	if vd := strings.TrimSpace(conn.Configuration.VerificationDomain); vd != "" {
-		rec, err := record.Generate(record.Params{Domain: vd, IssuerDomain: issuerOf(conn), AccountURI: uri})
-		if err != nil {
-			return "", err
-		}
-		txts, lookupErr := net.DefaultResolver.LookupTXT(ctx, rec.FQDN)
-		for _, t := range txts {
-			if t == rec.Value {
-				return fmt.Sprintf("Verified ✓ — the standing record for %s is live (%s). Certificates can be issued for this domain.", vd, rec.FQDN), nil
-			}
-		}
-		detail := "no matching TXT record found"
-		if lookupErr != nil {
-			detail = lookupErr.Error()
-		}
-		return "", fmt.Errorf("standing record NOT found for %s (%s). Publish this TXT record at your DNS provider, then Test Connection again: %s",
-			vd, detail, rec.ZoneFile())
+	// Manual / DNS-persist mode: validate every listed domain's standing record.
+	wantValue := issuerOf(conn) + "; accounturi=" + uri
+	domains := parseDomainList(conn.Configuration.VerificationDomains)
+	if len(domains) == 0 {
+		return "", fmt.Errorf("DNS-persist mode: paste the customer's domains into 'Verification Domains' (one per line or comma-separated) so Test Connection can confirm their standing records are live. "+
+			"Each record is _validation-persist.<domain> TXT with value %q. ACME account URI: %s", wantValue, uri)
 	}
 
-	// Manual mode, no verification domain yet: hand back the record to publish.
-	tmpl, _ := record.Generate(record.Params{Domain: "<your-domain>", IssuerDomain: issuerOf(conn), AccountURI: uri})
-	return fmt.Sprintf("Connected. DNS-persist mode. Give this one-time TXT record to the domain owner (replace <your-domain>): %s — then enter that domain in 'Verification Domain' and Test Connection to confirm it is live. ACME account URI: %s",
-		tmpl.ZoneFile(), uri), nil
+	var missing []string
+	verified := 0
+	for _, d := range domains {
+		rec, err := record.Generate(record.Params{Domain: d, IssuerDomain: issuerOf(conn), AccountURI: uri})
+		if err != nil {
+			missing = append(missing, d+" (invalid name)")
+			continue
+		}
+		if recordLive(ctx, rec.FQDN, uri, issuerOf(conn)) {
+			verified++
+		} else {
+			missing = append(missing, d)
+		}
+	}
+
+	if len(missing) > 0 {
+		return "", fmt.Errorf("standing record not live (or not yet propagated) for %d of %d domain(s): %s. "+
+			"Publish _validation-persist.<domain> TXT with value %q for each, then Re-Test Connection. (%d of %d already verified.)",
+			len(missing), len(domains), strings.Join(missing, ", "), wantValue, verified, len(domains))
+	}
+	return fmt.Sprintf("Verified ✓ — all %d domain(s) have a live standing record bound to this account. You can continue.", len(domains)), nil
+}
+
+// parseDomainList splits a pasted list (newlines, commas, semicolons, or spaces) into clean domains:
+// it strips any leading "_validation-persist." label, a "*." wildcard prefix, surrounding whitespace
+// and trailing dots, lowercases, and de-duplicates.
+func parseDomainList(raw string) []string {
+	fields := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == '\n' || r == '\r' || r == ',' || r == ' ' || r == '\t' || r == ';'
+	})
+	seen := map[string]bool{}
+	out := make([]string, 0, len(fields))
+	for _, f := range fields {
+		d := strings.ToLower(strings.Trim(strings.TrimSpace(f), "."))
+		d = strings.TrimPrefix(d, record.Label+".")
+		d = strings.TrimPrefix(d, "*.")
+		if d == "" || seen[d] {
+			continue
+		}
+		seen[d] = true
+		out = append(out, d)
+	}
+	return out
+}
+
+// recordLive reports whether a live TXT record at fqdn binds the domain to our ACME account: it must
+// name the issuer and carry accounturi=<our account URI>. Trailing policy/persistUntil tokens are
+// ignored, so the same check passes for both plain and wildcard records.
+func recordLive(ctx context.Context, fqdn, accountURI, issuer string) bool {
+	txts, err := net.DefaultResolver.LookupTXT(ctx, fqdn)
+	if err != nil {
+		return false
+	}
+	issuer = strings.ToLower(strings.TrimSpace(issuer))
+	want := "accounturi=" + strings.ToLower(accountURI)
+	for _, t := range txts {
+		norm := strings.ReplaceAll(strings.ToLower(t), " ", "")
+		if strings.HasPrefix(norm, issuer+";") && strings.Contains(norm, want) {
+			return true
+		}
+	}
+	return false
 }

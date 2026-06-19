@@ -49,9 +49,9 @@
                 "condition": { "scope": "#/properties/configuration/properties/dnsProvider", "schema": { "const": "route53" } }
               }
             },
-            "verificationDomain": {
+            "verificationDomains": {
               "type": "string",
-              "x-labelLocalizationKey": "verificationDomain.label",
+              "x-labelLocalizationKey": "verificationDomains.label",
               "x-rank": 5,
               "x-rule": {
                 "effect": "SHOW",
@@ -71,7 +71,7 @@
               "x-rank": 0
             }
           },
-          "required": []
+          "required": ["accountKey"]
         }
       },
       "required": ["configuration", "credentials"]
@@ -187,8 +187,8 @@
         "route53": "AWS Route 53"
       },
       "hostedZoneId": { "label": "Route 53 Hosted Zone ID (auth uses the vSatellite's IAM role)" },
-      "verificationDomain": { "label": "Verification Domain (optional — after the record is published, enter the domain and Test Connection to confirm it's live)" },
-      "accountKey": { "label": "ACME Account Key (PEM, ECDSA P-256) — leave blank and Test Connection to generate one" },
+      "verificationDomains": { "label": "Verification Domains — paste the customer's domains (one per line or comma-separated); Test Connection confirms every standing record is live" },
+      "accountKey": { "label": "ACME Account Key (PEM, ECDSA P-256)" },
       "includeExpiredCertificates": { "label": "Include expired certificates" }
     }
   },
