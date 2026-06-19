@@ -1,0 +1,36 @@
+name: publish-image
+
+# Builds the connector container image with ko (no Dockerfile needed) and publishes it to GitHub
+# Container Registry (ghcr.io). The image is what a customer's vSatellite pulls. Make the package
+# PUBLIC once (repo/org → Packages → package settings → Change visibility) so any vSatellite can
+# pull it with no credentials.
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+      - name: Install ko
+        run: go install github.com/google/ko@latest
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | ko login ghcr.io --username "${{ github.actor }}" --password-stdin
+      - name: Build and push image
+        env:
+          KO_DOCKER_REPO: ghcr.io/${{ github.repository_owner }}/cm-saas-letsencrypt-ca-connector
+          KO_DEFAULTBASEIMAGE: cgr.dev/chainguard/static:latest
+        run: |
+          IMAGE=$(ko build --bare --platform=linux/amd64 --tags=latest,sha-${{ github.sha }} ./cmd/cm-saas-letsencrypt-ca-connector)
+          echo "Published: $IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_STEP_SUMMARY"

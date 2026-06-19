@@ -13,6 +13,21 @@ The vSatellite must be able to **pull** the connector image. Confirm this BEFORE
 If the vSatellite can't pull, fix that first — a registered connector with an unpullable image
 just fails `testConnection` in CM with no useful error.
 
+## Customer distribution (recommended: GitHub + GHCR)
+For customers to run this connector they need two things: the **container image** and the
+**manifest.json**. The simplest model:
+- **Image:** published automatically to **`ghcr.io/<owner>/cm-saas-letsencrypt-ca-connector`** by
+  the `publish-image` GitHub Actions workflow (`.github/workflows/publish-image.yml`) on every
+  push to `main` and on `v*` tags. **Make the GHCR package PUBLIC once** (repo/org → Packages →
+  package settings → change visibility) so any customer's vSatellite can pull it with **no
+  credentials**.
+- **Manifest:** the customer registers `manifest.json` (with `deployment.image` set to the public
+  GHCR image) in their own CM SaaS tenant and configures a CA account.
+
+So a customer's flow is just: register the manifest → set Directory URL + ACME account key + DCV
+mode → issue. No image build on their side. The sections below cover building/pushing yourself
+(e.g. to a private registry) if you don't use the GHCR workflow.
+
 ## 1. Build + push the image
 
 ### Option A — Docker (the framework default; needs Docker/buildx)
