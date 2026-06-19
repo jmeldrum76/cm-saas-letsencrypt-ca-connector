@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
+	"strings"
 	"time"
 
 	"github.com/cmsaas-connectors/cm-saas-letsencrypt-ca-connector/internal/app/domain"
@@ -10,9 +13,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// TestConnection loads the account key, validates the ACME directory, and registers/reuses the
-// account. On success it returns (and logs) the account URI plus a copy-ready standing-record
-// template — the value a customer takes to their DNS provider for DNS-persist validation.
+// TestConnection registers/reuses the ACME account, then:
+//   - auto mode (a DNS provider selected): also validates the DNS provider credentials.
+//   - manual / DNS-persist mode: returns the account URI + the exact standing record to hand to
+//     the domain owner. If a Verification Domain is given, it checks DNS that the record is live.
 func (s *Service) TestConnection(conn domain.Connection) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -24,23 +28,52 @@ func (s *Service) TestConnection(conn domain.Connection) (string, error) {
 	if err := ensureAccount(ctx, client, conn); err != nil {
 		return "", err
 	}
-
-	tmpl, _ := record.Generate(record.Params{
-		Domain:       "<your-domain>",
-		IssuerDomain: issuerOf(conn),
-		AccountURI:   client.AccountURI(),
-	})
+	uri := client.AccountURI()
 	zap.L().Info("ACME account ready",
 		zap.String("directoryUrl", directoryURLOf(conn)),
-		zap.String("accountURI", client.AccountURI()),
-		zap.String("dcvMode", conn.Configuration.DCVMode),
-		zap.String("standingRecordTemplate", tmpl.ZoneFile()),
+		zap.String("accountURI", uri),
+		zap.String("dnsProvider", conn.Configuration.DNSProvider),
 	)
 
+	// Auto mode: a DNS provider is selected — validate its credentials/zone too.
 	if isAutoMode(conn) {
-		return fmt.Sprintf("Connected. ACME account URI: %s. Automated DNS mode — the connector will publish the %s record for you.",
-			client.AccountURI(), record.Label), nil
+		zoneID := conn.Configuration.HostedZoneID
+		if zoneID == "" {
+			return "", errors.New("a DNS provider is selected but the Hosted Zone ID is empty")
+		}
+		pub, err := s.publisherFor(ctx, conn)
+		if err != nil {
+			return "", err
+		}
+		if err := pub.Validate(ctx, zoneID); err != nil {
+			return "", fmt.Errorf("DNS provider check failed: %w", err)
+		}
+		return fmt.Sprintf("Connected. ACME account URI: %s. DNS provider (%s) verified — the connector will publish validation records automatically.",
+			uri, conn.Configuration.DNSProvider), nil
 	}
-	return fmt.Sprintf("Connected. ACME account URI: %s. DNS-persist mode — publish this TXT record at your DNS provider once per domain (replace <your-domain>): %s",
-		client.AccountURI(), tmpl.ZoneFile()), nil
+
+	// Manual / DNS-persist mode: with a Verification Domain, confirm the standing record is live.
+	if vd := strings.TrimSpace(conn.Configuration.VerificationDomain); vd != "" {
+		rec, err := record.Generate(record.Params{Domain: vd, IssuerDomain: issuerOf(conn), AccountURI: uri})
+		if err != nil {
+			return "", err
+		}
+		txts, lookupErr := net.DefaultResolver.LookupTXT(ctx, rec.FQDN)
+		for _, t := range txts {
+			if t == rec.Value {
+				return fmt.Sprintf("Verified ✓ — the standing record for %s is live (%s). Certificates can be issued for this domain.", vd, rec.FQDN), nil
+			}
+		}
+		detail := "no matching TXT record found"
+		if lookupErr != nil {
+			detail = lookupErr.Error()
+		}
+		return "", fmt.Errorf("standing record NOT found for %s (%s). Publish this TXT record at your DNS provider, then Test Connection again: %s",
+			vd, detail, rec.ZoneFile())
+	}
+
+	// Manual mode, no verification domain yet: hand back the record to publish.
+	tmpl, _ := record.Generate(record.Params{Domain: "<your-domain>", IssuerDomain: issuerOf(conn), AccountURI: uri})
+	return fmt.Sprintf("Connected. DNS-persist mode. Give this one-time TXT record to the domain owner (replace <your-domain>): %s — then enter that domain in 'Verification Domain' and Test Connection to confirm it is live. ACME account URI: %s",
+		tmpl.ZoneFile(), uri), nil
 }

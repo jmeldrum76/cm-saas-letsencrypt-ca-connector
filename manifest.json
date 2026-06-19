@@ -36,40 +36,40 @@
               "x-labelLocalizationKey": "contact.label",
               "x-rank": 2
             },
-            "dcvMode": {
-              "type": "string",
-              "default": "manual",
-              "oneOf": [
-                { "const": "manual", "x-labelLocalizationKey": "dcvMode.manual" },
-                { "const": "auto", "x-labelLocalizationKey": "dcvMode.auto" }
-              ],
-              "x-labelLocalizationKey": "dcvMode.label",
-              "x-rank": 3
-            },
             "dnsProvider": {
               "type": "string",
-              "default": "route53",
+              "default": "none",
               "oneOf": [
-                { "const": "route53", "x-labelLocalizationKey": "dnsProvider.route53" }
+                { "const": "none", "x-labelLocalizationKey": "dnsProvider.none" },
+                { "const": "route53", "x-labelLocalizationKey": "dnsProvider.route53" },
+                { "const": "azure", "x-labelLocalizationKey": "dnsProvider.azure" },
+                { "const": "cloudflare", "x-labelLocalizationKey": "dnsProvider.cloudflare" },
+                { "const": "gcp", "x-labelLocalizationKey": "dnsProvider.gcp" },
+                { "const": "f5", "x-labelLocalizationKey": "dnsProvider.f5" }
               ],
               "x-labelLocalizationKey": "dnsProvider.label",
-              "x-rank": 4,
-              "x-rule": {
-                "effect": "SHOW",
-                "condition": { "scope": "#/properties/dcvMode", "schema": { "const": "auto" } }
-              }
+              "x-rank": 3
             },
             "hostedZoneId": {
               "type": "string",
               "x-labelLocalizationKey": "hostedZoneId.label",
+              "x-rank": 4,
+              "x-rule": {
+                "effect": "SHOW",
+                "condition": { "scope": "#/properties/dnsProvider", "schema": { "not": { "const": "none" } } }
+              }
+            },
+            "verificationDomain": {
+              "type": "string",
+              "x-labelLocalizationKey": "verificationDomain.label",
               "x-rank": 5,
               "x-rule": {
                 "effect": "SHOW",
-                "condition": { "scope": "#/properties/dcvMode", "schema": { "const": "auto" } }
+                "condition": { "scope": "#/properties/dnsProvider", "schema": { "const": "none" } }
               }
             }
           },
-          "required": ["directoryUrl", "dcvMode"]
+          "required": ["directoryUrl"]
         },
         "credentials": {
           "type": "object",
@@ -209,13 +209,17 @@
       },
       "issuerDomain": { "label": "Issuer Domain Name" },
       "contact": { "label": "Account Contact (optional, e.g. mailto:ops@example.com)" },
-      "dcvMode": {
-        "label": "DNS Validation Method",
-        "manual": "DNS-persist — you publish a one-time record (no DNS credentials needed)",
-        "auto": "Automated — connector manages DNS validation via your DNS provider"
+      "dnsProvider": {
+        "label": "DNS Provider",
+        "none": "Manual - Do not use DNS Provider",
+        "route53": "AWS Route 53",
+        "azure": "Azure",
+        "cloudflare": "Cloudflare",
+        "gcp": "Google Cloud",
+        "f5": "F5 XC"
       },
-      "dnsProvider": { "label": "DNS Provider", "route53": "AWS Route 53" },
       "hostedZoneId": { "label": "Hosted Zone ID" },
+      "verificationDomain": { "label": "Verification Domain (optional — after the record is published, enter the domain and Test Connection to confirm it's live)" },
       "accountKey": { "label": "ACME Account Key (PEM, ECDSA P-256)" },
       "accessKeyId": { "label": "Access Key ID" },
       "secretAccessKey": { "label": "Secret Access Key", "show": "Show", "hide": "Hide" },

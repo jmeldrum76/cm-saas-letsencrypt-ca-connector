@@ -142,6 +142,8 @@ func (p *recordingPublisher) DeleteRecord(_ context.Context, _, fqdn, rdata stri
 	return nil
 }
 
+func (p *recordingPublisher) Validate(_ context.Context, _ string) error { return nil }
+
 // mockACMEServer is a minimal ACME server that completes the order flow offline: the single
 // authorization reports "valid" (simulating a JIT hit on a present standing record), so no
 // challenge fulfilment is needed and issuance proceeds to finalize.

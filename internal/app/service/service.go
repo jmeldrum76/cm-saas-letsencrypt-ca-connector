@@ -83,9 +83,11 @@ func ensureAccount(ctx context.Context, client *acme.Client, conn domain.Connect
 	return client.Register(ctx, contacts)
 }
 
-// isAutoMode reports whether the connection requests auto DCV mode.
+// isAutoMode reports whether a DNS provider is selected (auto DCV). "none"/empty means DNS-persist
+// (manual) mode where the customer publishes the standing record and the connector touches no DNS.
 func isAutoMode(conn domain.Connection) bool {
-	return strings.EqualFold(strings.TrimSpace(conn.Configuration.DCVMode), domain.DCVModeAuto)
+	p := strings.ToLower(strings.TrimSpace(conn.Configuration.DNSProvider))
+	return p != "" && p != "none"
 }
 
 // newPublisher builds the auto-mode DNS publisher from the connection (static keys if provided,

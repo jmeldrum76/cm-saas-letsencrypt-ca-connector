@@ -29,10 +29,13 @@ type Configuration struct {
 	Contact string `json:"contact"`
 	// DCVMode selects how domain control is satisfied: DCVModeManual or DCVModeAuto.
 	DCVMode string `json:"dcvMode"`
-	// DNSProvider names the auto-mode publisher (e.g. "route53"). Empty in manual mode.
+	// DNSProvider names the publisher. "none"/empty = manual (DNS-persist) mode; "route53" = auto.
 	DNSProvider string `json:"dnsProvider"`
 	// HostedZoneID is the auto-mode DNS hosted zone (e.g. a Route 53 zone ID). Empty in manual mode.
 	HostedZoneID string `json:"hostedZoneId"`
+	// VerificationDomain is an optional manual-mode field: after the domain owner publishes the
+	// standing record, Test Connection looks it up at this domain to confirm it is live.
+	VerificationDomain string `json:"verificationDomain"`
 }
 
 // Credentials holds secret material. Every field is marked x-encrypted in the manifest.

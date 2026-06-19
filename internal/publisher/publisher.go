@@ -20,4 +20,7 @@ type Publisher interface {
 	// DeleteRecord removes rdata from the TXT record at fqdn (teardown / tests), leaving any
 	// other values intact.
 	DeleteRecord(ctx context.Context, zoneID, fqdn, rdata string) error
+	// Validate performs a read-only check that the provider credentials and zone are usable
+	// (used by Test Connection when a DNS provider is selected).
+	Validate(ctx context.Context, zoneID string) error
 }

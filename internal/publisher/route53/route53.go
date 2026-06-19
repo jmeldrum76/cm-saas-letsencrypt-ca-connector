@@ -104,6 +104,18 @@ func (p *Publisher) DeleteRecord(ctx context.Context, zoneID, fqdn, rdata string
 	return err
 }
 
+// Validate performs a read-only check that the credentials can reach the hosted zone.
+func (p *Publisher) Validate(ctx context.Context, zoneID string) error {
+	_, err := p.client.ListResourceRecordSets(ctx, &route53.ListResourceRecordSetsInput{
+		HostedZoneId: aws.String(zoneID),
+		MaxItems:     aws.Int32(1),
+	})
+	if err != nil {
+		return fmt.Errorf("route53: validate hosted zone %s: %w", zoneID, err)
+	}
+	return nil
+}
+
 // existingTXT returns the TXT resource records at name, or nil if the record set is absent.
 func (p *Publisher) existingTXT(ctx context.Context, zoneID, name string) ([]r53types.ResourceRecord, error) {
 	out, err := p.client.ListResourceRecordSets(ctx, &route53.ListResourceRecordSetsInput{
