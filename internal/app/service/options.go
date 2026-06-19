@@ -16,9 +16,13 @@ func (s *Service) GetOptions(_ domain.Connection) ([]domain.ProductOption, []dom
 			Name:  productOptionName,
 			Types: []domain.ProductType{domain.ProductTypeSsl},
 			Details: domain.ProductDetails{
+				// ProfileID must be non-empty: CM uses it as the product option's stable
+				// identifier when registering selectable product options on the CA account.
+				ProfileID:          "letsencrypt-dnspersist",
 				ProfileName:        productOptionName,
 				TrustType:          "public",
 				SignatureAlgorithm: "SHA256withECDSA",
+				AllowedKeySizes:    []string{"2048", "3072", "4096"},
 			},
 		},
 	}, nil, nil
