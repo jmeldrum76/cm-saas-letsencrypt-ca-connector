@@ -1,6 +1,6 @@
 {
   "_comment": "CA connector for Let's Encrypt via the dns-persist-01 challenge. Domain control uses a standing _validation-persist TXT record (JIT validation); issuance never depends on DNS access. DCV mode 'manual' = the customer publishes the record (connector makes ZERO DNS calls); 'auto' = the connector publishes it once via a DNS provider (Route 53).",
-  "_comment_conditional_ui": "DNS Provider drives the form via x-rule (effect SHOW, same-object sibling scope #/properties/dnsProvider): hostedZoneId shows only for route53, verificationDomain only for none (manual). Auto mode (route53) authenticates to Route 53 with the vSatellite's IAM role (default AWS credential chain) — there are no static-key UI fields, which avoids the unsupported cross-object (credentials gated by configuration) x-rule. The Go Credentials struct still accepts accessKeyId/secretAccessKey if ever needed, but they are not collected in the UI. Validate conditional behavior in https://login.venafi.cloud/manifest-simulator/ca-connector before release.",
+  "_comment_conditional_ui": "DNS Provider drives the form via x-rule (effect SHOW). x-rule condition.scope is relative to the CONNECTION root (not the configuration object), so it must be the FULL path #/properties/configuration/properties/dnsProvider — a short #/properties/dnsProvider resolves to nothing and the field stays hidden. hostedZoneId shows only for route53, verificationDomain only for none (manual). Auto mode (route53) authenticates to Route 53 with the vSatellite's IAM role (default AWS credential chain) — there are no static-key UI fields, which avoids the unsupported cross-object (credentials gated by configuration) x-rule. The Go Credentials struct still accepts accessKeyId/secretAccessKey if ever needed, but they are not collected in the UI. Validate conditional behavior in https://login.venafi.cloud/manifest-simulator/ca-connector before release.",
   "name": "Let's Encrypt (dns-persist-01) CA Connector",
   "description": "Issues certificates from Let's Encrypt using the ACME dns-persist-01 challenge. Domain control is established by a persistent _validation-persist DNS record; issuance never depends on DNS access (manual mode makes zero DNS calls).",
   "pluginType": "CA",
@@ -52,7 +52,7 @@
               "x-rank": 4,
               "x-rule": {
                 "effect": "SHOW",
-                "condition": { "scope": "#/properties/dnsProvider", "schema": { "const": "route53" } }
+                "condition": { "scope": "#/properties/configuration/properties/dnsProvider", "schema": { "const": "route53" } }
               }
             },
             "verificationDomain": {
@@ -61,7 +61,7 @@
               "x-rank": 5,
               "x-rule": {
                 "effect": "SHOW",
-                "condition": { "scope": "#/properties/dnsProvider", "schema": { "const": "none" } }
+                "condition": { "scope": "#/properties/configuration/properties/dnsProvider", "schema": { "const": "none" } }
               }
             }
           },
