@@ -19,8 +19,8 @@
               "type": "string",
               "default": "https://acme-staging-v02.api.letsencrypt.org/directory",
               "oneOf": [
-                { "const": "https://acme-v02.api.letsencrypt.org/directory", "x-labelLocalizationKey": "directoryUrl.production" },
-                { "const": "https://acme-staging-v02.api.letsencrypt.org/directory", "x-labelLocalizationKey": "directoryUrl.staging" }
+                { "const": "https://acme-v02.api.letsencrypt.org/directory", "title": "Let's Encrypt Production (acme-v02)", "x-labelLocalizationKey": "directoryUrl.production" },
+                { "const": "https://acme-staging-v02.api.letsencrypt.org/directory", "title": "Let's Encrypt Staging (acme-staging-v02)", "x-labelLocalizationKey": "directoryUrl.staging" }
               ],
               "x-labelLocalizationKey": "directoryUrl.label",
               "x-rank": 0
@@ -40,12 +40,8 @@
               "type": "string",
               "default": "none",
               "oneOf": [
-                { "const": "none", "x-labelLocalizationKey": "dnsProvider.none" },
-                { "const": "route53", "x-labelLocalizationKey": "dnsProvider.route53" },
-                { "const": "azure", "x-labelLocalizationKey": "dnsProvider.azure" },
-                { "const": "cloudflare", "x-labelLocalizationKey": "dnsProvider.cloudflare" },
-                { "const": "gcp", "x-labelLocalizationKey": "dnsProvider.gcp" },
-                { "const": "f5", "x-labelLocalizationKey": "dnsProvider.f5" }
+                { "const": "none", "title": "Manual - Do not use DNS Provider", "x-labelLocalizationKey": "dnsProvider.none" },
+                { "const": "route53", "title": "AWS Route 53", "x-labelLocalizationKey": "dnsProvider.route53" }
               ],
               "x-labelLocalizationKey": "dnsProvider.label",
               "x-rank": 3
@@ -212,11 +208,7 @@
       "dnsProvider": {
         "label": "DNS Provider",
         "none": "Manual - Do not use DNS Provider",
-        "route53": "AWS Route 53",
-        "azure": "Azure",
-        "cloudflare": "Cloudflare",
-        "gcp": "Google Cloud",
-        "f5": "F5 XC"
+        "route53": "AWS Route 53"
       },
       "hostedZoneId": { "label": "Hosted Zone ID" },
       "verificationDomain": { "label": "Verification Domain (optional — after the record is published, enter the domain and Test Connection to confirm it's live)" },
