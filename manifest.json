@@ -71,7 +71,7 @@
               "x-rank": 0
             }
           },
-          "required": ["accountKey"]
+          "required": []
         }
       },
       "required": ["configuration", "credentials"]
@@ -188,7 +188,7 @@
       },
       "hostedZoneId": { "label": "Route 53 Hosted Zone ID (auth uses the vSatellite's IAM role)" },
       "verificationDomain": { "label": "Verification Domain (optional — after the record is published, enter the domain and Test Connection to confirm it's live)" },
-      "accountKey": { "label": "ACME Account Key (PEM, ECDSA P-256)" },
+      "accountKey": { "label": "ACME Account Key (PEM, ECDSA P-256) — leave blank and Test Connection to generate one" },
       "includeExpiredCertificates": { "label": "Include expired certificates" }
     }
   },

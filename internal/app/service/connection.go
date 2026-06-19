@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cmsaas-connectors/cm-saas-letsencrypt-ca-connector/internal/acme"
 	"github.com/cmsaas-connectors/cm-saas-letsencrypt-ca-connector/internal/app/domain"
 	"github.com/cmsaas-connectors/cm-saas-letsencrypt-ca-connector/internal/record"
 	"go.uber.org/zap"
@@ -20,6 +21,24 @@ import (
 func (s *Service) TestConnection(conn domain.Connection) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+
+	// Bootstrap: if no account key was supplied, generate one, register the ACME account, and hand
+	// the key back for the admin to paste in and save. This only fires on a blank field (initial
+	// setup); once saved, the key is reused on every call. We warn loudly because generating a new
+	// key after standing records exist creates a NEW account URI and orphans every published record.
+	bootstrapped := false
+	if strings.TrimSpace(conn.Credentials.AccountKey) == "" {
+		key, err := acme.GenerateAccountKey()
+		if err != nil {
+			return "", err
+		}
+		pemBytes, err := key.PEM()
+		if err != nil {
+			return "", err
+		}
+		conn.Credentials.AccountKey = string(pemBytes)
+		bootstrapped = true
+	}
 
 	client, err := buildClient(conn)
 	if err != nil {
@@ -34,6 +53,13 @@ func (s *Service) TestConnection(conn domain.Connection) (string, error) {
 		zap.String("accountURI", uri),
 		zap.String("dnsProvider", conn.Configuration.DNSProvider),
 	)
+
+	if bootstrapped {
+		return fmt.Sprintf("No ACME Account Key was set, so the connector generated one and registered ACME account %s. "+
+			"COPY the key below into the 'ACME Account Key' field and Save, then Test Connection again. "+
+			"Back it up: generating a new key later starts a new account and orphans every standing record you have published.\n\n%s",
+			uri, conn.Credentials.AccountKey), nil
+	}
 
 	// Auto mode: a DNS provider is selected — validate its credentials/zone too.
 	if isAutoMode(conn) {
