@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/cmsaas-connectors/cm-saas-letsencrypt-ca-connector/internal/app/domain"
@@ -10,18 +11,18 @@ import (
 )
 
 // TestConnection loads the account key, validates the ACME directory, and registers/reuses the
-// account. On success it logs the account URI and a copy-ready standing-record template the
-// operator can hand to a domain owner (manual mode).
-func (s *Service) TestConnection(conn domain.Connection) error {
+// account. On success it returns (and logs) the account URI plus a copy-ready standing-record
+// template — the value a customer takes to their DNS provider for DNS-persist validation.
+func (s *Service) TestConnection(conn domain.Connection) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	client, err := buildClient(conn)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := ensureAccount(ctx, client, conn); err != nil {
-		return err
+		return "", err
 	}
 
 	tmpl, _ := record.Generate(record.Params{
@@ -35,5 +36,11 @@ func (s *Service) TestConnection(conn domain.Connection) error {
 		zap.String("dcvMode", conn.Configuration.DCVMode),
 		zap.String("standingRecordTemplate", tmpl.ZoneFile()),
 	)
-	return nil
+
+	if isAutoMode(conn) {
+		return fmt.Sprintf("Connected. ACME account URI: %s. Automated DNS mode — the connector will publish the %s record for you.",
+			client.AccountURI(), record.Label), nil
+	}
+	return fmt.Sprintf("Connected. ACME account URI: %s. DNS-persist mode — publish this TXT record at your DNS provider once per domain (replace <your-domain>): %s",
+		client.AccountURI(), tmpl.ZoneFile()), nil
 }

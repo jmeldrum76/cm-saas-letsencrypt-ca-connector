@@ -38,11 +38,13 @@ func (svc *WebhookService) HandleTestConnection(c echo.Context) error {
 
 	res := TestConnectionResponse{Result: TestConnectionFailed}
 
-	if err := svc.Connections.TestConnection(req.Connection); err != nil {
+	msg, err := svc.Connections.TestConnection(req.Connection)
+	if err != nil {
 		zap.L().Error("error connecting to ACME directory", zap.String("error", err.Error()))
 		res.Message = fmt.Sprintf("failed to connect to ACME directory: %s", err.Error())
 	} else {
 		res.Result = TestConnectionSuccess
+		res.Message = msg
 		zap.L().Info("successfully connected to ACME directory")
 	}
 

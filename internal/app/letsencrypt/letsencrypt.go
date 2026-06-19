@@ -7,9 +7,10 @@ import (
 	"github.com/cmsaas-connectors/cm-saas-letsencrypt-ca-connector/internal/app/domain"
 )
 
-// ConnectionService validates connectivity/configuration to the ACME CA.
+// ConnectionService validates connectivity/configuration to the ACME CA. On success it returns a
+// human-readable message (account URI + standing-record template) surfaced in the CM UI.
 type ConnectionService interface {
-	TestConnection(connection domain.Connection) error
+	TestConnection(connection domain.Connection) (string, error)
 }
 
 // OptionsService retrieves and validates issuance product options.

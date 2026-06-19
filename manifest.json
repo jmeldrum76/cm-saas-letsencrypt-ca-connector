@@ -18,6 +18,10 @@
             "directoryUrl": {
               "type": "string",
               "default": "https://acme-staging-v02.api.letsencrypt.org/directory",
+              "oneOf": [
+                { "const": "https://acme-v02.api.letsencrypt.org/directory", "x-labelLocalizationKey": "directoryUrl.production" },
+                { "const": "https://acme-staging-v02.api.letsencrypt.org/directory", "x-labelLocalizationKey": "directoryUrl.staging" }
+              ],
               "x-labelLocalizationKey": "directoryUrl.label",
               "x-rank": 0
             },
@@ -34,15 +38,20 @@
             },
             "dcvMode": {
               "type": "string",
-              "enum": ["manual", "auto"],
               "default": "manual",
+              "oneOf": [
+                { "const": "manual", "x-labelLocalizationKey": "dcvMode.manual" },
+                { "const": "auto", "x-labelLocalizationKey": "dcvMode.auto" }
+              ],
               "x-labelLocalizationKey": "dcvMode.label",
               "x-rank": 3
             },
             "dnsProvider": {
               "type": "string",
-              "enum": ["route53"],
               "default": "route53",
+              "oneOf": [
+                { "const": "route53", "x-labelLocalizationKey": "dnsProvider.route53" }
+              ],
               "x-labelLocalizationKey": "dnsProvider.label",
               "x-rank": 4,
               "x-rule": {
@@ -193,15 +202,23 @@
   },
   "localizationResources": {
     "en": {
-      "directoryUrl": { "label": "ACME Directory URL (Pebble / LE staging / LE production)" },
-      "issuerDomain": { "label": "Issuer Domain Name (validated against the dns-persist-01 challenge)" },
+      "directoryUrl": {
+        "label": "Server URL",
+        "production": "Let's Encrypt Production (acme-v02)",
+        "staging": "Let's Encrypt Staging (acme-staging-v02)"
+      },
+      "issuerDomain": { "label": "Issuer Domain Name" },
       "contact": { "label": "Account Contact (optional, e.g. mailto:ops@example.com)" },
-      "dcvMode": { "label": "DCV Mode — manual (customer publishes record) or auto (publish via DNS provider)" },
-      "dnsProvider": { "label": "Auto mode: DNS Provider" },
-      "hostedZoneId": { "label": "Auto mode: Hosted Zone ID" },
+      "dcvMode": {
+        "label": "DNS Validation Method",
+        "manual": "DNS-persist — you publish a one-time record (no DNS credentials needed)",
+        "auto": "Automated — connector manages DNS validation via your DNS provider"
+      },
+      "dnsProvider": { "label": "DNS Provider", "route53": "AWS Route 53" },
+      "hostedZoneId": { "label": "Hosted Zone ID" },
       "accountKey": { "label": "ACME Account Key (PEM, ECDSA P-256)" },
-      "accessKeyId": { "label": "Auto mode: AWS Access Key ID" },
-      "secretAccessKey": { "label": "Auto mode: AWS Secret Access Key", "show": "Show", "hide": "Hide" },
+      "accessKeyId": { "label": "Access Key ID" },
+      "secretAccessKey": { "label": "Secret Access Key", "show": "Show", "hide": "Hide" },
       "includeExpiredCertificates": { "label": "Include expired certificates" }
     }
   },
