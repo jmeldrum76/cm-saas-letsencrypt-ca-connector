@@ -16,9 +16,11 @@ func (s *Service) GetOptions(_ domain.Connection) ([]domain.ProductOption, []dom
 			Name:  productOptionName,
 			Types: []domain.ProductType{domain.ProductTypeSsl},
 			Details: domain.ProductDetails{
-				// ProfileID must be non-empty: CM uses it as the product option's stable
-				// identifier when registering selectable product options on the CA account.
-				ProfileID:          "letsencrypt-dnspersist",
+				// ProfileID must be a valid v1-format UUID: CM uses it verbatim as the
+				// certificateAuthorityProductOption UUID when registering the selectable product
+				// option. A non-UUID string gets hashed into a malformed UUID (bad version/variant
+				// bits), so registration silently fails and the product list stays empty.
+				ProfileID:          "5eb6c7a7-772b-11f1-8e76-7b297abb22b2",
 				ProfileName:        productOptionName,
 				TrustType:          "public",
 				SignatureAlgorithm: "SHA256withECDSA",
