@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dns-persist onboarding</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --line:#2a2f3a; --fg:#e6e9ef; --mut:#9aa4b2;
+          --acc:#4f8cff; --ok:#3fb950; --bad:#f85149; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif; }
+  header { padding:16px 22px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0; font-weight:600; }
+  header .sub { color:var(--mut); font-size:12px; }
+  .env { margin-left:auto; display:flex; align-items:center; gap:8px; font-size:13px; }
+  .env select { background:var(--panel); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:5px 8px; }
+  .wrap { max-width:920px; margin:0 auto; padding:18px 22px 60px; }
+  .tabs { display:flex; gap:6px; border-bottom:1px solid var(--line); margin-bottom:18px; flex-wrap:wrap; }
+  .tabs button { background:none; border:none; color:var(--mut); padding:9px 14px; cursor:pointer; font-size:14px; border-bottom:2px solid transparent; }
+  .tabs button.active { color:var(--fg); border-bottom-color:var(--acc); }
+  .panel { display:none; }
+  .panel.active { display:block; }
+  label { display:block; color:var(--mut); font-size:12px; margin:12px 0 4px; }
+  input[type=text], textarea { width:100%; background:var(--panel); color:var(--fg); border:1px solid var(--line);
+          border-radius:8px; padding:9px 11px; font-family:ui-monospace,Consolas,monospace; font-size:13px; }
+  textarea { resize:vertical; }
+  .row { display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-top:12px; }
+  .chk { display:flex; align-items:center; gap:7px; color:var(--mut); font-size:13px; }
+  button.run { background:var(--acc); color:#fff; border:none; border-radius:8px; padding:9px 18px; cursor:pointer; font-size:14px; font-weight:600; }
+  button.run:disabled { opacity:.55; cursor:default; }
+  button.ghost { background:var(--panel); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:5px 10px; cursor:pointer; font-size:12px; }
+  .hint { color:var(--mut); font-size:12px; margin-top:6px; }
+  .out { margin-top:16px; }
+  pre { background:#0b0d11; border:1px solid var(--line); border-radius:8px; padding:12px; overflow:auto; white-space:pre-wrap;
+        word-break:break-all; font-family:ui-monospace,Consolas,monospace; font-size:12.5px; }
+  .uri { color:var(--acc); }
+  .ok { color:var(--ok); } .bad { color:var(--bad); }
+  .err { color:var(--bad); border:1px solid var(--bad); border-radius:8px; padding:10px 12px; margin-top:14px; }
+  .warn { color:#e3b341; font-size:12px; margin-top:8px; }
+  .zone { margin-top:14px; } .zone h3 { margin:0 0 6px; font-size:13px; color:var(--acc); }
+  .cov { color:var(--mut); font-size:12px; }
+  table { width:100%; border-collapse:collapse; margin-top:8px; font-size:13px; }
+  td { padding:4px 8px; border-bottom:1px solid var(--line); }
+</style>
+</head>
+<body>
+<header>
+  <div><h1>dns-persist onboarding</h1><div class="sub">Let's Encrypt dns-persist-01 — generate accounts, records &amp; validation plans</div></div>
+  <div class="env">Directory:
+    <select id="env"><option value="staging">Staging</option><option value="prod">Production</option></select>
+  </div>
+</header>
+<div class="wrap">
+  <div class="tabs">
+    <button data-tab="new" class="active">New Account</button>
+    <button data-tab="records">Records</button>
+    <button data-tab="validate">Validate</button>
+    <button data-tab="plan">Plan from cert</button>
+  </div>
+
+  <!-- New Account -->
+  <section class="panel active" id="tab-new">
+    <p class="hint">Generate a per-customer ACME account. The key is shown once for you to save — it is never stored on the server.</p>
+    <label>Account contact (optional)</label>
+    <input type="text" id="na-contact" placeholder="mailto:ops@example.com">
+    <div class="row"><button class="run" onclick="newAccount(this)">Generate account</button></div>
+    <div class="out" id="na-out"></div>
+  </section>
+
+  <!-- Records -->
+  <section class="panel" id="tab-records">
+    <p class="hint">Produce the standing TXT records to send a customer. Paste the account key; the URI is derived from it.</p>
+    <label>Account key (PEM)</label>
+    <textarea id="rc-key" rows="6" placeholder="-----BEGIN EC PRIVATE KEY-----"></textarea>
+    <label>Domains (one per line or comma-separated)</label>
+    <textarea id="rc-domains" rows="4" placeholder="foo.com&#10;bar.com"></textarea>
+    <div class="row">
+      <span class="chk"><input type="checkbox" id="rc-wild"> add <code>policy=wildcard</code> (covers *.domain)</span>
+      <button class="run" onclick="records(this)">Generate records</button>
+    </div>
+    <div class="out" id="rc-out"></div>
+  </section>
+
+  <!-- Validate -->
+  <section class="panel" id="tab-validate">
+    <p class="hint">Check that each domain's <code>_validation-persist</code> record is live and bound to this account.</p>
+    <label>Account key (PEM)</label>
+    <textarea id="vl-key" rows="6" placeholder="-----BEGIN EC PRIVATE KEY-----"></textarea>
+    <label>Domains</label>
+    <textarea id="vl-domains" rows="4" placeholder="foo.com, bar.com"></textarea>
+    <div class="row"><button class="run" onclick="validate(this)">Validate DNS</button></div>
+    <div class="out" id="vl-out"></div>
+  </section>
+
+  <!-- Plan -->
+  <section class="panel" id="tab-plan">
+    <p class="hint">Paste an existing certificate (PEM) — its SANs are collapsed into the minimal record plan, grouped by zone.</p>
+    <label>Certificate (PEM)</label>
+    <textarea id="pl-cert" rows="6" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+    <label>Account key (PEM)</label>
+    <textarea id="pl-key" rows="6" placeholder="-----BEGIN EC PRIVATE KEY-----"></textarea>
+    <div class="row">
+      <span class="chk"><input type="checkbox" id="pl-val"> also DNS-check each record</span>
+      <button class="run" onclick="plan(this)">Build plan</button>
+    </div>
+    <div class="out" id="pl-out"></div>
+  </section>
+</div>
+
+<script>
+const env = document.getElementById('env');
+const isProd = () => env.value === 'prod';
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  document.getElementById('tab-' + b.dataset.tab).classList.add('active');
+});
+function esc(s){ return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function copyBtn(text){ const id='c'+Math.random().toString(36).slice(2);
+  setTimeout(()=>{const e=document.getElementById(id); if(e) e.onclick=()=>navigator.clipboard.writeText(text);},0);
+  return `<button class="ghost" id="${id}">Copy</button>`; }
+async function call(path, body, btn, out, render){
+  btn.disabled = true; out.innerHTML = '<p class="hint">Working… (registers the ACME account, can take a few seconds)</p>';
+  try{
+    const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const j = await r.json();
+    if(!r.ok || j.error){ out.innerHTML = `<div class="err">${esc(j.error||('HTTP '+r.status))}</div>`; }
+    else { out.innerHTML = render(j); }
+  }catch(e){ out.innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+  finally{ btn.disabled = false; }
+}
+function newAccount(btn){
+  const out = document.getElementById('na-out');
+  call('/api/new-account', {prod:isProd(), contact:document.getElementById('na-contact').value}, btn, out, j => `
+    <label>Account URI</label><pre class="uri">${esc(j.uri)}</pre>
+    <label>Standing record value (same for every domain)</label><pre>${esc(j.value)} ${copyBtn(j.value)}</pre>
+    <label>Account key (PEM) — SAVE THIS</label><pre>${esc(j.pem)}</pre>
+    <button class="ghost" onclick="dl('acme-account.pem',\`${j.pem.replace(/`/g,'')}\`)">Download key</button>
+    <div class="warn">Back this up. Generating a new key later starts a new account and orphans every published record.</div>`);
+}
+function dl(name, text){ const a=document.createElement('a');
+  a.href='data:application/x-pem-file,'+encodeURIComponent(text); a.download=name; a.click(); }
+function records(btn){
+  const out = document.getElementById('rc-out');
+  call('/api/records', {prod:isProd(), key:document.getElementById('rc-key').value,
+      domains:document.getElementById('rc-domains').value, wildcard:document.getElementById('rc-wild').checked},
+    btn, out, j => { const lines=(j.records||[]).map(r=>`${r.fqdn}.\tIN TXT\t"${r.value}"`).join('\n');
+      return `<label>Account URI</label><pre class="uri">${esc(j.uri)}</pre>
+        <label>Records to send the customer ${copyBtn(lines)}</label><pre>${esc(lines)}</pre>`; });
+}
+function validate(btn){
+  const out = document.getElementById('vl-out');
+  call('/api/validate', {prod:isProd(), key:document.getElementById('vl-key').value,
+      domains:document.getElementById('vl-domains').value}, btn, out, j => {
+    const rows=(j.results||[]).map(r=>`<tr><td>${r.live?'<span class="ok">OK</span>':'<span class="bad">missing</span>'}</td><td>${esc(r.domain)}</td></tr>`).join('');
+    const ok=(j.results||[]).filter(r=>r.live).length, n=(j.results||[]).length;
+    return `<label>Account URI</label><pre class="uri">${esc(j.uri)}</pre>
+      <table>${rows}</table><p class="${ok===n?'ok':'bad'}">${ok} of ${n} verified.</p>`; });
+}
+function plan(btn){
+  const out = document.getElementById('pl-out');
+  call('/api/plan', {prod:isProd(), cert:document.getElementById('pl-cert').value,
+      key:document.getElementById('pl-key').value, validate:document.getElementById('pl-val').checked},
+    btn, out, j => {
+    let recs=0; (j.zones||[]).forEach(z=>recs+=z.records.length);
+    let html=`<label>Account URI</label><pre class="uri">${esc(j.uri)}</pre>
+      <p class="hint">${j.sanCount} SAN(s) → ${recs} record(s) across ${(j.zones||[]).length} zone(s)</p>`;
+    (j.zones||[]).forEach(z=>{ html+=`<div class="zone"><h3>Zone ${esc(z.zone)}</h3>`;
+      z.records.forEach(r=>{ const tag = r.live===undefined?'':(r.live?' <span class="ok">[live]</span>':' <span class="bad">[MISSING]</span>');
+        html+=`<pre>${esc(r.fqdn)}.\tIN TXT\t"${esc(r.value)}"${tag}</pre><div class="cov">covers: ${esc((r.covers||[]).join(', '))}</div>`; });
+      html+=`</div>`; });
+    return html; });
+}
+</script>
+</body>
+</html>
