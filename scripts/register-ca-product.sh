@@ -1,22 +1,18 @@
 #!/usr/bin/env bash
 # Register the product option for a Connector CA account so it becomes selectable in CM Issuing
-# Templates.
+# Templates. CM calls the connector's getOptions and caches the product on every new CA account,
+# but does NOT auto-promote it to a registered product option (what the Issuing Template picker
+# needs), and exposes no UI button for it on Connector CAs. Run this once per CA you create.
+# Idempotent: no-ops if the CA already has a product option.
 #
-# Why this is needed: CM calls the connector's getOptions and CACHES the product on every new CA
-# account, but it does NOT auto-promote that to a *registered* product option — which is what the
-# Issuing Template's "Certificate Authority" picker requires. CM exposes no UI button for this on
-# Connector CAs, so it must be done via one API call. Run this once per CA you create in the UI.
-# (Idempotent: it no-ops if the CA already has a product option.)
-#
-# Usage:
-#   TPPL_KEY=<cm-api-key> scripts/register-ca-product.sh "<CA account name>"
-#   # optional: PRODUCT_NAME="Let's Encrypt (dns-persist-01)"  VENAFI_CLOUD_BASE=https://api.venafi.cloud
+# Usage: TPPL_KEY=<cm-api-key> scripts/register-ca-product.sh "<CA account name>"
 set -euo pipefail
 
 B="${VENAFI_CLOUD_BASE:-https://api.venafi.cloud}"
 K="${TPPL_KEY:?set TPPL_KEY to your CM API key}"
-NAME="${1:?usage: register-ca-product.sh \"<CA account name>\"}"
-PRODUCT="${PRODUCT_NAME:-Let's Encrypt (dns-persist-01)}"
+NAME="${1:?provide the CA account name as the first argument}"
+PRODUCT="${PRODUCT_NAME:-}"
+[ -z "$PRODUCT" ] && PRODUCT="Let's Encrypt (dns-persist-01)"
 H=(-H "tppl-api-key: $K" -H "Content-Type: application/json")
 
 ACCTS=$(curl -s "$B/v1/certificateauthorities/CONNECTOR/accounts" "${H[@]}")
@@ -29,7 +25,7 @@ fi
 
 HAVE=$(jq -r --arg n "$NAME" '.accounts[] | select(.account.key==$n) | (.productOptions|length)' <<<"$ACCTS")
 if [ "${HAVE:-0}" -gt 0 ]; then
-  echo "'$NAME' already has $HAVE product option(s) — already usable in Issuing Templates."
+  echo "'$NAME' already has $HAVE product option, already usable in Issuing Templates."
   exit 0
 fi
 
@@ -40,5 +36,4 @@ if [ -z "$POID" ]; then
   echo "failed to register product option for '$NAME': $RESP" >&2
   exit 1
 fi
-echo "Registered product option $POID for '$NAME'."
-echo "It will now appear in the Issuing Template > Certificate Authority picker (refresh the page)."
+echo "Registered product option $POID for '$NAME'. Refresh the Issuing Template page to select it."
