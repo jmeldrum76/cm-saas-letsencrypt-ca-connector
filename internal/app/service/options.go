@@ -31,13 +31,14 @@ func (s *Service) GetOptions(conn domain.Connection) ([]domain.ProductOption, []
 	}, nil, nil
 }
 
-// deriveProfileID returns a stable UUID unique to this CA account. CM uses the getOptions profileId
-// verbatim as the product-option identifier when it auto-registers the selectable product, so a
-// value shared across CA accounts collides and only the first account ever registers — the rest
-// silently get no product and never appear in the Issuing Template picker. The DigiCert connector
-// avoids this by returning real per-product IDs queried from its API; ACME has no such API, so we
-// derive a distinct, deterministic id from the account's own identity (its ACME account key +
-// directory). The bytes are formatted with valid v1 version/variant bits so CM accepts it as a UUID.
+// deriveProfileID returns a stable UUID unique to this CA account. NOTE: CM does NOT auto-register a
+// Connector-CA product option — it caches the getOptions product on the account, but the
+// issuing-template-visible product option must be registered explicitly via the caProduct API
+// (see scripts/register-ca-product.sh; verified live — a fresh CA with a unique id still had no
+// registered product until the API call). We still give each CA a distinct profileId (the DigiCert
+// connector returns real per-product IDs from its API; ACME has none, so we derive one from the
+// account key + directory) so a CA's cached and registered product option stay self-consistent and
+// never collide across accounts. Bytes are formatted with valid v1 version/variant bits.
 func deriveProfileID(conn domain.Connection) string {
 	seed := strings.TrimSpace(conn.Credentials.AccountKey) + "|" + directoryURLOf(conn)
 	sum := sha1.Sum([]byte(seed))
