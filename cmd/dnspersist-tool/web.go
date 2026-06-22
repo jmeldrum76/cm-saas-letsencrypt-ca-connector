@@ -32,6 +32,7 @@ func cmdServe(args []string) error {
 	})
 	mux.HandleFunc("/api/new-account", apiNewAccount)
 	mux.HandleFunc("/api/records", apiRecords)
+	mux.HandleFunc("/api/email", apiEmail)
 	mux.HandleFunc("/api/validate", apiValidate)
 	mux.HandleFunc("/api/plan", apiPlan)
 
@@ -92,6 +93,26 @@ func apiRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"uri": uri, "records": recs})
+}
+
+func apiEmail(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Key      string `json:"key"`
+		Domains  string `json:"domains"`
+		Wildcard bool   `json:"wildcard"`
+		Prod     bool   `json:"prod"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	defer cancel()
+	uri, email, err := opEmail(ctx, []byte(req.Key), splitDomains(req.Domains), req.Wildcard, req.Prod)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"uri": uri, "email": email})
 }
 
 func apiValidate(w http.ResponseWriter, r *http.Request) {

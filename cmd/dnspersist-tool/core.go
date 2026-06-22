@@ -158,6 +158,45 @@ func opRecords(ctx context.Context, keyPEM []byte, domains []string, wildcard, p
 	return uri, recs, nil
 }
 
+// opEmail resolves the account URI for keyPEM, builds the records, and renders a ready-to-send
+// vendor-agnostic email the operator can forward to a domain owner.
+func opEmail(ctx context.Context, keyPEM []byte, domains []string, wildcard, prod bool) (uri, email string, err error) {
+	uri, recs, err := opRecords(ctx, keyPEM, domains, wildcard, prod)
+	if err != nil {
+		return "", "", err
+	}
+	return uri, buildCustomerEmail(recs, wildcard), nil
+}
+
+// buildCustomerEmail renders the email body. It stays vendor-agnostic (the three fields every DNS
+// provider has) and reassures that the record is a one-time, harmless validation marker.
+func buildCustomerEmail(recs []RecordLine, wildcard bool) string {
+	var b strings.Builder
+	b.WriteString("Subject: Action needed - add one DNS TXT record per domain (one-time; enables auto-renewing certificates)\n\n")
+	b.WriteString("Hi,\n\n")
+	b.WriteString("To issue and then AUTOMATICALLY RENEW the TLS/SSL certificate(s) for your domain(s), please add one DNS TXT record per domain wherever your DNS is managed. This is a ONE-TIME setup - once it is in place, certificates renew on their own with no further DNS changes.\n\n")
+	b.WriteString("This record is only a validation marker. It does NOT affect your website, email, or any existing DNS.\n\n")
+	b.WriteString("Record(s) to create:\n\n")
+	for i, r := range recs {
+		domain := strings.TrimPrefix(r.FQDN, record.Label+".")
+		fmt.Fprintf(&b, "%d) Domain: %s\n", i+1, domain)
+		b.WriteString("   Type:  TXT\n")
+		fmt.Fprintf(&b, "   Name:  %s   (if your provider asks for the full name, use: %s)\n", record.Label, r.FQDN)
+		fmt.Fprintf(&b, "   Value: %s\n", r.Value)
+		b.WriteString("   TTL:   300 (or your provider's default)\n\n")
+	}
+	b.WriteString("Please note (applies to any DNS provider):\n")
+	b.WriteString("- The Value is a single line. Paste it exactly, keeping the whole string together (spaces and semicolons included).\n")
+	b.WriteString("- If your provider shows a plain value box, do NOT add quotation marks; some providers add them for you.\n")
+	b.WriteString("- Please do not delete this record - it must stay in place so renewals keep working.\n")
+	if wildcard {
+		b.WriteString("- This record also covers all sub-domains (*.your-domain) for wildcard certificates.\n")
+	}
+	b.WriteString("\nReply once it is added and we will confirm everything checks out. Thank you!\n")
+	b.WriteString("\nP.S. Where DNS records live in common providers: AWS Route 53 -> Hosted zones -> your domain -> Create record. Cloudflare -> DNS -> Records -> Add record. GoDaddy -> Domain -> DNS -> Add. Azure DNS -> your DNS zone -> Record sets -> Add.\n")
+	return b.String()
+}
+
 // opValidate resolves the account URI for keyPEM and DNS-checks each domain's standing record.
 func opValidate(ctx context.Context, keyPEM []byte, domains []string, prod bool) (uri string, results []DomainResult, err error) {
 	c, err := clientForKeyPEM(ctx, keyPEM, prod, "")

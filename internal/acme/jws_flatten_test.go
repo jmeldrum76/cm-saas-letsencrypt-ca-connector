@@ -18,8 +18,15 @@ func TestParseAccountKeyFlattened(t *testing.T) {
 	}
 	// Flatten: every newline becomes a space (what a single-line input produces on paste).
 	flat := strings.ReplaceAll(string(good), "\n", " ")
-	if _, err := ParseAccountKey([]byte(flat)); err != nil {
+	repaired, err := ParseAccountKey([]byte(flat))
+	if err != nil {
 		t.Fatalf("flattened PEM should parse, got: %v", err)
+	}
+	// CRITICAL: the repaired key must be the SAME key (same account), not a corrupted/different one.
+	if repaired.priv.D.Cmp(key.priv.D) != 0 ||
+		repaired.priv.PublicKey.X.Cmp(key.priv.PublicKey.X) != 0 ||
+		repaired.priv.PublicKey.Y.Cmp(key.priv.PublicKey.Y) != 0 {
+		t.Fatal("repaired flattened key differs from the original — repair corrupted the key")
 	}
 	// A genuinely broken value must still error.
 	if _, err := ParseAccountKey([]byte("not a key")); err == nil {

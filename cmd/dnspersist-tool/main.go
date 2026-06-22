@@ -109,6 +109,7 @@ func cmdRecords(args []string) error {
 	keyPath := fs.String("key", "", "account key PEM (required)")
 	domains := fs.String("domains", "", "comma/space separated domains (required)")
 	wildcard := fs.Bool("wildcard", false, "emit policy=wildcard records (cover *.<domain>)")
+	emailOut := fs.Bool("email", false, "print a ready-to-send customer email instead of raw records")
 	prod := fs.Bool("prod", false, "target production")
 	_ = fs.Parse(args)
 	if *keyPath == "" || *domains == "" {
@@ -120,6 +121,14 @@ func cmdRecords(args []string) error {
 	}
 	ctx, cancel := ctx60()
 	defer cancel()
+	if *emailOut {
+		_, body, err := opEmail(ctx, keyPEM, splitDomains(*domains), *wildcard, *prod)
+		if err != nil {
+			return err
+		}
+		fmt.Print(body)
+		return nil
+	}
 	uri, recs, err := opRecords(ctx, keyPEM, splitDomains(*domains), *wildcard, *prod)
 	if err != nil {
 		return err

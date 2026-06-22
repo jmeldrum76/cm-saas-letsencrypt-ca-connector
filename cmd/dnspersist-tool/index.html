@@ -54,6 +54,7 @@
   <div class="tabs">
     <button data-tab="new" class="active">New Account</button>
     <button data-tab="records">Records</button>
+    <button data-tab="email">Email to customer</button>
     <button data-tab="validate">Validate</button>
     <button data-tab="plan">Plan from cert</button>
   </div>
@@ -79,6 +80,20 @@
       <button class="run" onclick="records(this)">Generate records</button>
     </div>
     <div class="out" id="rc-out"></div>
+  </section>
+
+  <!-- Email -->
+  <section class="panel" id="tab-email">
+    <p class="hint">Generate a ready-to-send, vendor-agnostic email telling the domain owner exactly which TXT record(s) to publish. Copy it into your mail client and send.</p>
+    <label>Account key (PEM)</label>
+    <textarea id="em-key" rows="6" placeholder="-----BEGIN EC PRIVATE KEY-----"></textarea>
+    <label>Domains</label>
+    <textarea id="em-domains" rows="4" placeholder="foo.com, bar.com"></textarea>
+    <div class="row">
+      <span class="chk"><input type="checkbox" id="em-wild"> wildcard (cover *.domain)</span>
+      <button class="run" onclick="email(this)">Generate email</button>
+    </div>
+    <div class="out" id="em-out"></div>
   </section>
 
   <!-- Validate -->
@@ -148,6 +163,13 @@ function records(btn){
     btn, out, j => { const lines=(j.records||[]).map(r=>`${r.fqdn}.\tIN TXT\t"${r.value}"`).join('\n');
       return `<label>Account URI</label><pre class="uri">${esc(j.uri)}</pre>
         <label>Records to send the customer ${copyBtn(lines)}</label><pre>${esc(lines)}</pre>`; });
+}
+function email(btn){
+  const out = document.getElementById('em-out');
+  call('/api/email', {prod:isProd(), key:document.getElementById('em-key').value,
+      domains:document.getElementById('em-domains').value, wildcard:document.getElementById('em-wild').checked},
+    btn, out, j => `<label>Account URI</label><pre class="uri">${esc(j.uri)}</pre>
+      <label>Email to forward to the domain owner ${copyBtn(j.email)}</label><pre>${esc(j.email)}</pre>`);
 }
 function validate(btn){
   const out = document.getElementById('vl-out');
