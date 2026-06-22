@@ -11,6 +11,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // AccountKey is the ECDSA P-256 ACME account key. The connector owns this key; reusing it
@@ -28,9 +29,48 @@ func GenerateAccountKey() (*AccountKey, error) {
 	return &AccountKey{priv: priv}, nil
 }
 
-// ParseAccountKey loads a PEM-encoded EC private key (SEC1 "EC PRIVATE KEY" or PKCS#8).
+// normalizePEM repairs a PEM blob whose newlines were flattened to spaces (e.g. pasted into a
+// single-line form field, where "-----BEGIN EC PRIVATE KEY----- AAAA BBBB ... -----END...-----"
+// has no line breaks). If the data already decodes as PEM it is returned unchanged.
+func normalizePEM(data []byte) []byte {
+	if block, _ := pem.Decode(data); block != nil {
+		return data
+	}
+	s := strings.TrimSpace(string(data))
+	const beginPfx, endPfx = "-----BEGIN ", "-----END "
+	bi := strings.Index(s, beginPfx)
+	ei := strings.Index(s, endPfx)
+	if bi < 0 || ei < 0 || ei <= bi {
+		return data
+	}
+	// Pull the block type out of the BEGIN header: "-----BEGIN <type>-----".
+	afterBegin := s[bi+len(beginPfx):]
+	close := strings.Index(afterBegin, "-----")
+	if close < 0 {
+		return data
+	}
+	typ := afterBegin[:close]
+	body := s[bi+len(beginPfx)+close+len("-----") : ei]
+	body = strings.Join(strings.Fields(body), "") // strip all interior whitespace
+	var b strings.Builder
+	b.WriteString(beginPfx + typ + "-----\n")
+	for i := 0; i < len(body); i += 64 {
+		j := i + 64
+		if j > len(body) {
+			j = len(body)
+		}
+		b.WriteString(body[i:j])
+		b.WriteByte('\n')
+	}
+	b.WriteString(endPfx + typ + "-----\n")
+	return []byte(b.String())
+}
+
+// ParseAccountKey loads a PEM-encoded EC private key (SEC1 "EC PRIVATE KEY" or PKCS#8). It first
+// repairs a PEM whose line breaks were flattened to spaces, which happens when the key is pasted
+// into a single-line form field (e.g. the CM credential input).
 func ParseAccountKey(pemData []byte) (*AccountKey, error) {
-	block, _ := pem.Decode(pemData)
+	block, _ := pem.Decode(normalizePEM(pemData))
 	if block == nil {
 		return nil, errors.New("acme: account key is not valid PEM")
 	}
