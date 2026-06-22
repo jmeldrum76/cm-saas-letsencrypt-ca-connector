@@ -1,6 +1,10 @@
 package service
 
 import (
+	"crypto/sha1"
+	"fmt"
+	"strings"
+
 	"github.com/cmsaas-connectors/cm-saas-letsencrypt-ca-connector/internal/app/domain"
 )
 
@@ -9,18 +13,15 @@ import (
 const productOptionName = "Let's Encrypt (dns-persist-01)"
 
 // GetOptions returns the available issuance profiles. There are no import options (ACME accounts
-// do not enumerate previously issued certificates).
-func (s *Service) GetOptions(_ domain.Connection) ([]domain.ProductOption, []domain.ImportOption, error) {
+// do not enumerate previously issued certificates). The product's profileId is derived per CA
+// account (see deriveProfileID) so multiple CA accounts of this connector each register cleanly.
+func (s *Service) GetOptions(conn domain.Connection) ([]domain.ProductOption, []domain.ImportOption, error) {
 	return []domain.ProductOption{
 		{
 			Name:  productOptionName,
 			Types: []domain.ProductType{domain.ProductTypeSsl},
 			Details: domain.ProductDetails{
-				// ProfileID must be a valid v1-format UUID: CM uses it verbatim as the
-				// certificateAuthorityProductOption UUID when registering the selectable product
-				// option. A non-UUID string gets hashed into a malformed UUID (bad version/variant
-				// bits), so registration silently fails and the product list stays empty.
-				ProfileID:          "5eb6c7a7-772b-11f1-8e76-7b297abb22b2",
+				ProfileID:          deriveProfileID(conn),
 				ProfileName:        productOptionName,
 				TrustType:          "public",
 				SignatureAlgorithm: "SHA256withECDSA",
@@ -28,6 +29,22 @@ func (s *Service) GetOptions(_ domain.Connection) ([]domain.ProductOption, []dom
 			},
 		},
 	}, nil, nil
+}
+
+// deriveProfileID returns a stable UUID unique to this CA account. CM uses the getOptions profileId
+// verbatim as the product-option identifier when it auto-registers the selectable product, so a
+// value shared across CA accounts collides and only the first account ever registers — the rest
+// silently get no product and never appear in the Issuing Template picker. The DigiCert connector
+// avoids this by returning real per-product IDs queried from its API; ACME has no such API, so we
+// derive a distinct, deterministic id from the account's own identity (its ACME account key +
+// directory). The bytes are formatted with valid v1 version/variant bits so CM accepts it as a UUID.
+func deriveProfileID(conn domain.Connection) string {
+	seed := strings.TrimSpace(conn.Credentials.AccountKey) + "|" + directoryURLOf(conn)
+	sum := sha1.Sum([]byte(seed))
+	b := sum[:16]
+	b[6] = (b[6] & 0x0f) | 0x10 // version 1 nibble
+	b[8] = (b[8] & 0x3f) | 0x80 // RFC 4122 variant
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
 // ValidateProduct validates a selected product before issuance. The single ACME profile needs
