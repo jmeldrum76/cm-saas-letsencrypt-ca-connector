@@ -29,6 +29,16 @@ func dirURL(prod bool) string {
 
 func recordValue(uri string) string { return issuer + "; accounturi=" + uri }
 
+// normalizeContact prepends the mailto: scheme Let's Encrypt requires when the operator enters a
+// bare email address.
+func normalizeContact(c string) string {
+	c = strings.TrimSpace(c)
+	if c == "" || strings.HasPrefix(strings.ToLower(c), "mailto:") {
+		return c
+	}
+	return "mailto:" + c
+}
+
 // clientForKeyPEM parses a PEM account key and registers (idempotent) so the account URI resolves.
 func clientForKeyPEM(ctx context.Context, keyPEM []byte, prod bool, contact string) (*acme.Client, error) {
 	key, err := acme.ParseAccountKey(keyPEM)
@@ -122,8 +132,8 @@ func opNewAccount(ctx context.Context, prod bool, contact string) (pemStr, uri s
 	}
 	c := &acme.Client{DirectoryURL: dirURL(prod), Key: key, IssuerDomain: issuer}
 	var contacts []string
-	if contact != "" {
-		contacts = []string{contact}
+	if cc := normalizeContact(contact); cc != "" {
+		contacts = []string{cc}
 	}
 	if err := c.Register(ctx, contacts); err != nil {
 		return "", "", fmt.Errorf("register ACME account: %w", err)
