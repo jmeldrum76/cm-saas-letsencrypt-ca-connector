@@ -33,11 +33,11 @@ if [ "${HAVE:-0}" -gt 0 ]; then
   exit 0
 fi
 
-POID=$(curl -s -X POST "$B/v1/certificateauthorities/CONNECTOR/accounts/$AID/productoptions" "${H[@]}" \
-  -d "$(jq -nc --arg pn "$PRODUCT" '{caProduct:{certificateAuthority:"CONNECTOR",productName:$pn}}')" \
-  | jq -r '.id')
-if [ -z "$POID" ] || [ "$POID" = "null" ]; then
-  echo "failed to register product option for '$NAME'" >&2
+BODY=$(jq -nc --arg pn "$PRODUCT" '{caProduct:{certificateAuthority:"CONNECTOR",productName:$pn}}')
+RESP=$(curl -s -X POST "$B/v1/certificateauthorities/CONNECTOR/accounts/$AID/productoptions" "${H[@]}" -d "$BODY")
+POID=$(jq -r '.id // empty' <<<"$RESP")
+if [ -z "$POID" ]; then
+  echo "failed to register product option for '$NAME': $RESP" >&2
   exit 1
 fi
 echo "Registered product option $POID for '$NAME'."
