@@ -59,8 +59,11 @@ func (s *Service) TestConnection(conn domain.Connection) (string, error) {
 	wantValue := issuerOf(conn) + "; accounturi=" + uri
 	domains := parseDomainList(conn.Configuration.VerificationDomains)
 	if len(domains) == 0 {
-		return "", fmt.Errorf("DNS-persist mode: paste the customer's domains into 'Verification Domains' (one per line or comma-separated) so Test Connection can confirm their standing records are live. "+
-			"Each record is _validation-persist.<domain> TXT with value %q. ACME account URI: %s", wantValue, uri)
+		// No domains to check yet — a valid connection. Succeeding here lets the CA account be
+		// created/saved (CM runs Test Connection on save and rejects a failing one). To confirm a
+		// customer's records, add their domains to Verification Domains and Test Connection again.
+		return fmt.Sprintf("Connected — ACME account %s registered (DNS-persist / manual mode). Add the customer's domains to 'Verification Domains' and Test Connection to confirm their standing records. Standing record value: %q",
+			uri, wantValue), nil
 	}
 
 	var missing []string
