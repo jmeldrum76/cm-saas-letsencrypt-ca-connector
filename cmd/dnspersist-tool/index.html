@@ -72,6 +72,7 @@
   <!-- Records -->
   <section class="panel" id="tab-records">
     <p class="hint">Produce the standing TXT records to send a customer. Paste the account key; the URI is derived from it.</p>
+    <div class="row"><button class="ghost" onclick="copyFromNewAccount('rc-key')">⤵ Copy key from New Account</button></div>
     <label>Account key (PEM)</label>
     <textarea id="rc-key" rows="6" placeholder="-----BEGIN EC PRIVATE KEY-----"></textarea>
     <label>Domains (one per line or comma-separated)</label>
@@ -86,7 +87,7 @@
   <!-- Email -->
   <section class="panel" id="tab-email">
     <p class="hint">Generate a ready-to-send, vendor-agnostic email telling the domain owner exactly which TXT record(s) to publish. Copy it into your mail client and send.</p>
-    <div class="row"><button class="ghost" onclick="copyFromRecords('em-key','em-domains','em-wild')">⤵ Copy key + domains from Records</button></div>
+    <div class="row"><button class="ghost" onclick="copyFromRecords('em-key','em-domains','em-wild')">⤵ Copy key + domains from Records</button> <button class="ghost" onclick="copyFromNewAccount('em-key')">⤵ Key from New Account</button></div>
     <label>Account key (PEM)</label>
     <textarea id="em-key" rows="6" placeholder="-----BEGIN EC PRIVATE KEY-----"></textarea>
     <label>Domains</label>
@@ -101,7 +102,7 @@
   <!-- Validate -->
   <section class="panel" id="tab-validate">
     <p class="hint">Check that each domain's <code>_validation-persist</code> record is live and bound to this account.</p>
-    <div class="row"><button class="ghost" onclick="copyFromRecords('vl-key','vl-domains')">⤵ Copy key + domains from Records</button></div>
+    <div class="row"><button class="ghost" onclick="copyFromRecords('vl-key','vl-domains')">⤵ Copy key + domains from Records</button> <button class="ghost" onclick="copyFromNewAccount('vl-key')">⤵ Key from New Account</button></div>
     <label>Account key (PEM)</label>
     <textarea id="vl-key" rows="6" placeholder="-----BEGIN EC PRIVATE KEY-----"></textarea>
     <label>Domains</label>
@@ -133,7 +134,7 @@
     <input type="text" id="ob-name" placeholder="Acme Corp">
     <div class="row">
       <span class="chk"><input type="checkbox" id="ob-genkey" onchange="document.getElementById('ob-key').disabled=this.checked"> generate a NEW Let's Encrypt account key (don't paste one)</span>
-      <button class="ghost" onclick="copyFromRecords('ob-key','ob-domains')">⤵ Copy key + domains from Records</button>
+      <button class="ghost" onclick="copyFromRecords('ob-key','ob-domains')">⤵ Copy key + domains from Records</button> <button class="ghost" onclick="copyFromNewAccount('ob-key')">⤵ Key from New Account</button>
     </div>
     <label>ACME account key (PEM) — or check "generate" above</label>
     <textarea id="ob-key" rows="6" placeholder="-----BEGIN EC PRIVATE KEY-----"></textarea>
@@ -173,12 +174,12 @@ async function call(path, body, btn, out, render){
 }
 function newAccount(btn){
   const out = document.getElementById('na-out');
-  call('/api/new-account', {prod:isProd(), contact:document.getElementById('na-contact').value}, btn, out, j => `
+  call('/api/new-account', {prod:isProd(), contact:document.getElementById('na-contact').value}, btn, out, j => { naKey = j.pem; return `
     <label>Account URI ${copyBtn(j.uri)}</label><pre class="uri">${esc(j.uri)}</pre>
     <label>Standing record value (same for every domain) ${copyBtn(j.value)}</label><pre>${esc(j.value)}</pre>
     <label>Account key (PEM) — SAVE THIS ${copyBtn(j.pem)}</label><pre>${esc(j.pem)}</pre>
     <button class="ghost" onclick="dl('acme-account.pem',\`${j.pem.replace(/`/g,'')}\`)">Download key</button>
-    <div class="warn">Back this up. Generating a new key later starts a new account and orphans every published record.</div>`);
+    <div class="warn">Back this up. Generating a new key later starts a new account and orphans every published record.</div>`; });
 }
 function dl(name, text){ const a=document.createElement('a');
   a.href='data:application/x-pem-file,'+encodeURIComponent(text); a.download=name; a.click(); }
@@ -219,6 +220,11 @@ function plan(btn){
         html+=`<pre>${esc(r.fqdn)}.\tIN TXT\t"${esc(r.value)}"${tag}</pre><div class="cov">covers: ${esc((r.covers||[]).join(', '))}</div>`; });
       html+=`</div>`; });
     return html; });
+}
+let naKey = '';
+function copyFromNewAccount(keyId){
+  if (naKey) document.getElementById(keyId).value = naKey;
+  else alert('Generate an account on the New Account tab first.');
 }
 function copyFromRecords(keyId, domainsId, wildId){
   const k = document.getElementById('rc-key').value;
