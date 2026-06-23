@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Register the product option for a Connector CA account so it becomes selectable in CM Issuing
-# Templates. CM calls the connector's getOptions and caches the product on every new CA account,
-# but does NOT auto-promote it to a registered product option (what the Issuing Template picker
-# needs), and exposes no UI button for it on Connector CAs. Run this once per CA you create.
+# Templates. In the CM UI this is done in the "New Certificate Authority" wizard at Step 3
+# "Issuance" -> Product Options (select the connector's product); that step is optional and easy to
+# skip, which leaves the CA out of the Issuing Template picker. This script is the API equivalent for
+# automated / API-driven onboarding (it POSTs the same caProduct registration).
 # Idempotent: no-ops if the CA already has a product option.
 #
 # Usage: TPPL_KEY=<cm-api-key> scripts/register-ca-product.sh "<CA account name>"
