@@ -174,9 +174,9 @@ async function call(path, body, btn, out, render){
 function newAccount(btn){
   const out = document.getElementById('na-out');
   call('/api/new-account', {prod:isProd(), contact:document.getElementById('na-contact').value}, btn, out, j => `
-    <label>Account URI</label><pre class="uri">${esc(j.uri)}</pre>
-    <label>Standing record value (same for every domain)</label><pre>${esc(j.value)} ${copyBtn(j.value)}</pre>
-    <label>Account key (PEM) — SAVE THIS</label><pre>${esc(j.pem)}</pre>
+    <label>Account URI ${copyBtn(j.uri)}</label><pre class="uri">${esc(j.uri)}</pre>
+    <label>Standing record value (same for every domain) ${copyBtn(j.value)}</label><pre>${esc(j.value)}</pre>
+    <label>Account key (PEM) — SAVE THIS ${copyBtn(j.pem)}</label><pre>${esc(j.pem)}</pre>
     <button class="ghost" onclick="dl('acme-account.pem',\`${j.pem.replace(/`/g,'')}\`)">Download key</button>
     <div class="warn">Back this up. Generating a new key later starts a new account and orphans every published record.</div>`);
 }
