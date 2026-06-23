@@ -35,6 +35,7 @@ func cmdServe(args []string) error {
 	mux.HandleFunc("/api/email", apiEmail)
 	mux.HandleFunc("/api/validate", apiValidate)
 	mux.HandleFunc("/api/plan", apiPlan)
+	mux.HandleFunc("/api/onboard", apiOnboard)
 
 	fmt.Printf("dnspersist web UI: http://%s\n", *addr)
 	fmt.Println("Keys are generated/used in memory only and never stored server-side.")
@@ -113,6 +114,47 @@ func apiEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"uri": uri, "email": email})
+}
+
+func apiOnboard(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		CMKey  string `json:"cmKey"`
+		Name   string `json:"name"`
+		Key    string `json:"key"`
+		GenKey bool   `json:"genKey"`
+		App    bool   `json:"app"`
+		Prod   bool   `json:"prod"`
+	}
+	if !decode(w, r, &req) {
+		return
+	}
+	if req.CMKey == "" || req.Name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "CM API key and customer name are required"})
+		return
+	}
+	if req.Key == "" && !req.GenKey {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "paste an account key, or check 'generate a new account key'"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	defer cancel()
+	key, genPEM, genURI := req.Key, "", ""
+	if req.GenKey {
+		pemStr, uri, err := opNewAccount(ctx, req.Prod, "")
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "generate account: " + err.Error()})
+			return
+		}
+		key, genPEM, genURI = pemStr, pemStr, uri
+	}
+	res, err := runOnboard(req.CMKey, "", req.Name, key, dirURL(req.Prod), req.App)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+	res.GeneratedKeyPEM = genPEM
+	res.AccountURI = genURI
+	writeJSON(w, http.StatusOK, res)
 }
 
 func apiValidate(w http.ResponseWriter, r *http.Request) {

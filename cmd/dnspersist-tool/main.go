@@ -31,6 +31,8 @@ func main() {
 		err = cmdValidate(os.Args[2:])
 	case "plan":
 		err = cmdPlan(os.Args[2:])
+	case "onboard":
+		err = cmdOnboard(os.Args[2:])
 	case "serve":
 		err = cmdServe(os.Args[2:])
 	case "-h", "--help", "help":
@@ -65,6 +67,10 @@ Usage:
 
   dnspersist plan        -cert leaf.pem -key key.pem [-validate] [-prod]
       Read an existing certificate's SANs and print the MINIMAL record plan, by zone.
+
+  dnspersist onboard     -cmkey <CM_API_KEY> -name "Customer" -key key.pem [-app] [-prod]
+      Create everything in CM via the API: Connector CA account (sealed key) -> product option
+      -> issuing template -> optional application. Makes a validated customer issue-ready.
 
   dnspersist serve       [-addr 127.0.0.1:8088] [-prod]
       Start the web UI (same operations in a browser). Binds to localhost by default.
@@ -227,5 +233,60 @@ func cmdPlan(args []string) error {
 	if *doValidate && fail > 0 {
 		return fmt.Errorf("%d planned record(s) not live yet", fail)
 	}
+	return nil
+}
+
+func cmdOnboard(args []string) error {
+	fs := flag.NewFlagSet("onboard", flag.ExitOnError)
+	cmKey := fs.String("cmkey", "", "CM API key (required)")
+	name := fs.String("name", "", "base name for the CA / template / application (required)")
+	keyPath := fs.String("key", "", "ACME account key PEM (omit with -genkey)")
+	genKey := fs.Bool("genkey", false, "generate a new Let's Encrypt account key instead of providing one")
+	out := fs.String("out", "", "where to write a generated key (default <name>-acct.pem)")
+	plugin := fs.String("plugin", "", "connector plugin id (default: the dns-persist connector)")
+	app := fs.Bool("app", false, "also create an application with the template assigned")
+	prod := fs.Bool("prod", false, "target production directory")
+	_ = fs.Parse(args)
+	if *cmKey == "" || *name == "" {
+		return fmt.Errorf("-cmkey and -name are required")
+	}
+	if *keyPath == "" && !*genKey {
+		return fmt.Errorf("provide -key <pem> or -genkey to generate one")
+	}
+	var accountKeyPEM string
+	if *genKey {
+		ctx, cancel := ctx60()
+		pemStr, uri, gerr := opNewAccount(ctx, *prod, "")
+		cancel()
+		if gerr != nil {
+			return fmt.Errorf("generate Let's Encrypt account: %w", gerr)
+		}
+		accountKeyPEM = pemStr
+		dest := *out
+		if dest == "" {
+			dest = strings.ReplaceAll(*name, " ", "-") + "-acct.pem"
+		}
+		if err := os.WriteFile(dest, []byte(pemStr), 0o600); err != nil {
+			return err
+		}
+		fmt.Printf("Generated Let's Encrypt account key -> %s   (URI %s)   KEEP SAFE — back it up.\n\n", dest, uri)
+	} else {
+		b, err := os.ReadFile(*keyPath)
+		if err != nil {
+			return err
+		}
+		accountKeyPEM = string(b)
+	}
+	r, err := runOnboard(*cmKey, *plugin, *name, accountKeyPEM, dirURL(*prod), *app)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("CA account        %s   (%s)\n", *name, r.CAID)
+	fmt.Printf("product option    %s\n", r.ProductOptionID)
+	fmt.Printf("issuing template  %s   (%s)\n", r.TemplateName, r.TemplateID)
+	if r.AppID != "" {
+		fmt.Printf("application       %s   (%s)\n", r.AppName, r.AppID)
+	}
+	fmt.Println("\nReady to issue — the CA and template are now selectable in CM.")
 	return nil
 }

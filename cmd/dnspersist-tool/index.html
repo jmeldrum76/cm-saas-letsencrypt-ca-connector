@@ -57,6 +57,7 @@
     <button data-tab="email">Email to customer</button>
     <button data-tab="validate">Validate</button>
     <button data-tab="plan">Plan from cert</button>
+    <button data-tab="onboard">Onboard to CM</button>
   </div>
 
   <!-- New Account -->
@@ -85,6 +86,7 @@
   <!-- Email -->
   <section class="panel" id="tab-email">
     <p class="hint">Generate a ready-to-send, vendor-agnostic email telling the domain owner exactly which TXT record(s) to publish. Copy it into your mail client and send.</p>
+    <div class="row"><button class="ghost" onclick="copyFromRecords('em-key','em-domains','em-wild')">⤵ Copy key + domains from Records</button></div>
     <label>Account key (PEM)</label>
     <textarea id="em-key" rows="6" placeholder="-----BEGIN EC PRIVATE KEY-----"></textarea>
     <label>Domains</label>
@@ -99,6 +101,7 @@
   <!-- Validate -->
   <section class="panel" id="tab-validate">
     <p class="hint">Check that each domain's <code>_validation-persist</code> record is live and bound to this account.</p>
+    <div class="row"><button class="ghost" onclick="copyFromRecords('vl-key','vl-domains')">⤵ Copy key + domains from Records</button></div>
     <label>Account key (PEM)</label>
     <textarea id="vl-key" rows="6" placeholder="-----BEGIN EC PRIVATE KEY-----"></textarea>
     <label>Domains</label>
@@ -119,6 +122,27 @@
       <button class="run" onclick="plan(this)">Build plan</button>
     </div>
     <div class="out" id="pl-out"></div>
+  </section>
+
+  <!-- Onboard -->
+  <section class="panel" id="tab-onboard">
+    <p class="hint">Once a customer's records are validated, create everything in CM via the API — Connector CA account (key sealed for the vSatellite) → product option → issuing template → optional application. This does what the CM wizard can't (it never registers the connector's product option).</p>
+    <label>CM API key</label>
+    <input type="password" id="ob-cmkey" placeholder="tppl-api-key for your CM tenant (operator key)">
+    <label>Customer / CA name</label>
+    <input type="text" id="ob-name" placeholder="Acme Corp">
+    <div class="row">
+      <span class="chk"><input type="checkbox" id="ob-genkey" onchange="document.getElementById('ob-key').disabled=this.checked"> generate a NEW Let's Encrypt account key (don't paste one)</span>
+      <button class="ghost" onclick="copyFromRecords('ob-key')">⤵ Copy key from Records</button>
+    </div>
+    <label>ACME account key (PEM) — or check "generate" above</label>
+    <textarea id="ob-key" rows="6" placeholder="-----BEGIN EC PRIVATE KEY-----"></textarea>
+    <div class="row">
+      <span class="chk"><input type="checkbox" id="ob-app" checked> also create an application (assign the template)</span>
+      <button class="run" onclick="onboard(this)">Create CA + template (+ app)</button>
+    </div>
+    <div class="warn">Uses the directory selected in the top-right toggle. Idempotent — re-running with the same name reuses existing objects.</div>
+    <div class="out" id="ob-out"></div>
   </section>
 </div>
 
@@ -193,6 +217,33 @@ function plan(btn){
         html+=`<pre>${esc(r.fqdn)}.\tIN TXT\t"${esc(r.value)}"${tag}</pre><div class="cov">covers: ${esc((r.covers||[]).join(', '))}</div>`; });
       html+=`</div>`; });
     return html; });
+}
+function copyFromRecords(keyId, domainsId, wildId){
+  const k = document.getElementById('rc-key').value;
+  if (k) document.getElementById(keyId).value = k;
+  if (domainsId){ const d = document.getElementById('rc-domains').value; if (d) document.getElementById(domainsId).value = d; }
+  if (wildId){ document.getElementById(wildId).checked = document.getElementById('rc-wild').checked; }
+}
+function onboard(btn){
+  const out = document.getElementById('ob-out');
+  call('/api/onboard', {prod:isProd(), cmKey:document.getElementById('ob-cmkey').value,
+      name:document.getElementById('ob-name').value, key:document.getElementById('ob-key').value,
+      genKey:document.getElementById('ob-genkey').checked, app:document.getElementById('ob-app').checked},
+    btn, out, j => {
+      let h = `<table>
+        <tr><td>CA account</td><td class="ok">${esc(j.caId)}</td></tr>
+        <tr><td>Product option</td><td class="ok">${esc(j.productOptionId)}</td></tr>
+        <tr><td>Issuing template</td><td class="ok">${esc(j.templateName)} &nbsp;(${esc(j.templateId)})</td></tr>`;
+      if (j.appId) h += `<tr><td>Application</td><td class="ok">${esc(j.appName)} &nbsp;(${esc(j.appId)})</td></tr>`;
+      h += `</table><p class="ok">Ready to issue — the CA and template are now selectable in CM.</p>`;
+      if (j.generatedKeyPem){
+        h += `<label>Account URI</label><pre class="uri">${esc(j.accountUri)}</pre>
+          <label>Generated account key (PEM) — SAVE THIS ${copyBtn(j.generatedKeyPem)}</label><pre>${esc(j.generatedKeyPem)}</pre>
+          <button class="ghost" onclick="dl('${esc(j.name||'acme-account')}.pem',\`${j.generatedKeyPem.replace(/\`/g,'')}\`)">Download key</button>
+          <div class="warn">Back this up — it's the account's only key. CM stored it sealed; you can't retrieve it later.</div>`;
+      }
+      return h;
+    });
 }
 </script>
 </body>
