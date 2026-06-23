@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"time"
 
 	"golang.org/x/crypto/blake2b"
@@ -265,12 +266,27 @@ func (c *cmClient) templateIDByName(name string) (string, error) {
 	return "", nil
 }
 
+// cnSanRegexes builds the CN/SAN allow-regexes for a template. Given the customer's domains it
+// scopes issuance to those names and their subdomains/wildcards; with no domains it falls back to
+// ".*" (any name). Each domain d yields "(.*\.)?<escaped d>", which matches d, *.d, and a.b.d.
+func cnSanRegexes(domains []string) []string {
+	if len(domains) == 0 {
+		return []string{".*"}
+	}
+	out := make([]string, 0, len(domains))
+	for _, d := range domains {
+		out = append(out, `(.*\.)?`+regexp.QuoteMeta(d))
+	}
+	return out
+}
+
 // createTemplate creates an issuing template bound to the product option. Returns the template id.
-// Idempotent: reuses an existing template of the same name.
-func (c *cmClient) createTemplate(name, productOptionID string) (string, error) {
+// Idempotent: reuses an existing template of the same name. CN/SAN are scoped to domains (or ".*").
+func (c *cmClient) createTemplate(name, productOptionID string, domains []string) (string, error) {
 	if id, _ := c.templateIDByName(name); id != "" {
 		return id, nil
 	}
+	reg := cnSanRegexes(domains)
 	body := map[string]any{
 		"name":                                name,
 		"certificateAuthority":                "CONNECTOR",
@@ -280,13 +296,13 @@ func (c *cmClient) createTemplate(name, productOptionID string) (string, error) 
 		"keyReuse":                            false,
 		"csrUploadAllowed":                    true,
 		"keyGeneratedByVenafiAllowed":         true,
-		"subjectCNRegexes":                    []string{".*"},
+		"subjectCNRegexes":                    reg,
 		"subjectORegexes":                     []string{".*"},
 		"subjectOURegexes":                    []string{".*"},
 		"subjectLRegexes":                     []string{".*"},
 		"subjectSTRegexes":                    []string{".*"},
 		"subjectCValues":                      []string{".*"},
-		"sanRegexes":                          []string{".*"},
+		"sanRegexes":                          reg,
 	}
 	if err := c.do("POST", "/v1/certificateissuingtemplates", body, nil); err != nil {
 		return "", err
@@ -343,7 +359,7 @@ type onboardResult struct {
 // runOnboard does the full CM onboarding for a validated customer: create CA account (sealed key) ->
 // register product option -> create issuing template -> optionally create an application. Every step
 // is idempotent, so re-running with the same name is safe. directoryURL selects staging/production.
-func runOnboard(cmKey, pluginID, name, accountKeyPEM, directoryURL string, createApp bool) (*onboardResult, error) {
+func runOnboard(cmKey, pluginID, name, accountKeyPEM, directoryURL string, domains []string, createApp bool) (*onboardResult, error) {
 	c := newCMClient(cmKey, pluginID)
 	r := &onboardResult{}
 	var err error
@@ -354,7 +370,7 @@ func runOnboard(cmKey, pluginID, name, accountKeyPEM, directoryURL string, creat
 		return nil, fmt.Errorf("register product option: %w", err)
 	}
 	r.TemplateName = name + " template"
-	if r.TemplateID, err = c.createTemplate(r.TemplateName, r.ProductOptionID); err != nil {
+	if r.TemplateID, err = c.createTemplate(r.TemplateName, r.ProductOptionID, domains); err != nil {
 		return nil, fmt.Errorf("create issuing template: %w", err)
 	}
 	if createApp {

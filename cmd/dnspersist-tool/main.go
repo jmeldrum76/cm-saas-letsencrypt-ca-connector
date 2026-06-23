@@ -243,6 +243,7 @@ func cmdOnboard(args []string) error {
 	keyPath := fs.String("key", "", "ACME account key PEM (omit with -genkey)")
 	genKey := fs.Bool("genkey", false, "generate a new Let's Encrypt account key instead of providing one")
 	out := fs.String("out", "", "where to write a generated key (default <name>-acct.pem)")
+	domains := fs.String("domains", "", "scope the template's CN/SAN regex to these domains (comma/space separated); default any")
 	plugin := fs.String("plugin", "", "connector plugin id (default: the dns-persist connector)")
 	app := fs.Bool("app", false, "also create an application with the template assigned")
 	prod := fs.Bool("prod", false, "target production directory")
@@ -277,7 +278,7 @@ func cmdOnboard(args []string) error {
 		}
 		accountKeyPEM = string(b)
 	}
-	r, err := runOnboard(*cmKey, *plugin, *name, accountKeyPEM, dirURL(*prod), *app)
+	r, err := runOnboard(*cmKey, *plugin, *name, accountKeyPEM, dirURL(*prod), splitDomains(*domains), *app)
 	if err != nil {
 		return err
 	}

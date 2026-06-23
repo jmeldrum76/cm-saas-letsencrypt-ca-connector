@@ -118,12 +118,13 @@ func apiEmail(w http.ResponseWriter, r *http.Request) {
 
 func apiOnboard(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		CMKey  string `json:"cmKey"`
-		Name   string `json:"name"`
-		Key    string `json:"key"`
-		GenKey bool   `json:"genKey"`
-		App    bool   `json:"app"`
-		Prod   bool   `json:"prod"`
+		CMKey   string `json:"cmKey"`
+		Name    string `json:"name"`
+		Key     string `json:"key"`
+		Domains string `json:"domains"`
+		GenKey  bool   `json:"genKey"`
+		App     bool   `json:"app"`
+		Prod    bool   `json:"prod"`
 	}
 	if !decode(w, r, &req) {
 		return
@@ -147,7 +148,7 @@ func apiOnboard(w http.ResponseWriter, r *http.Request) {
 		}
 		key, genPEM, genURI = pemStr, pemStr, uri
 	}
-	res, err := runOnboard(req.CMKey, "", req.Name, key, dirURL(req.Prod), req.App)
+	res, err := runOnboard(req.CMKey, "", req.Name, key, dirURL(req.Prod), splitDomains(req.Domains), req.App)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return

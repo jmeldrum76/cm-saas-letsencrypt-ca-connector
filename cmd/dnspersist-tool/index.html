@@ -133,10 +133,12 @@
     <input type="text" id="ob-name" placeholder="Acme Corp">
     <div class="row">
       <span class="chk"><input type="checkbox" id="ob-genkey" onchange="document.getElementById('ob-key').disabled=this.checked"> generate a NEW Let's Encrypt account key (don't paste one)</span>
-      <button class="ghost" onclick="copyFromRecords('ob-key')">⤵ Copy key from Records</button>
+      <button class="ghost" onclick="copyFromRecords('ob-key','ob-domains')">⤵ Copy key + domains from Records</button>
     </div>
     <label>ACME account key (PEM) — or check "generate" above</label>
     <textarea id="ob-key" rows="6" placeholder="-----BEGIN EC PRIVATE KEY-----"></textarea>
+    <label>Domains to scope the template's CN/SAN (optional — blank = allow any name)</label>
+    <textarea id="ob-domains" rows="3" placeholder="foo.com, bar.com  → template allows foo.com, *.foo.com, bar.com, *.bar.com"></textarea>
     <div class="row">
       <span class="chk"><input type="checkbox" id="ob-app" checked> also create an application (assign the template)</span>
       <button class="run" onclick="onboard(this)">Create CA + template (+ app)</button>
@@ -228,6 +230,7 @@ function onboard(btn){
   const out = document.getElementById('ob-out');
   call('/api/onboard', {prod:isProd(), cmKey:document.getElementById('ob-cmkey').value,
       name:document.getElementById('ob-name').value, key:document.getElementById('ob-key').value,
+      domains:document.getElementById('ob-domains').value,
       genKey:document.getElementById('ob-genkey').checked, app:document.getElementById('ob-app').checked},
     btn, out, j => {
       let h = `<table>
