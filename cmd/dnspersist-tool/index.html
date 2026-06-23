@@ -52,16 +52,16 @@
 </header>
 <div class="wrap">
   <div class="tabs">
-    <button data-tab="new" class="active">New Account</button>
+    <button data-tab="plan" class="active">Plan from cert</button>
+    <button data-tab="new">New Account</button>
     <button data-tab="records">Records</button>
     <button data-tab="email">Email to customer</button>
     <button data-tab="validate">Validate</button>
-    <button data-tab="plan">Plan from cert</button>
     <button data-tab="onboard">Onboard to CM</button>
   </div>
 
   <!-- New Account -->
-  <section class="panel active" id="tab-new">
+  <section class="panel" id="tab-new">
     <p class="hint">Generate a per-customer ACME account. The key is shown once for you to save — it is never stored on the server.</p>
     <label>Account contact (optional)</label>
     <input type="text" id="na-contact" placeholder="ops@example.com  (mailto: added automatically)">
@@ -111,7 +111,7 @@
   </section>
 
   <!-- Plan -->
-  <section class="panel" id="tab-plan">
+  <section class="panel active" id="tab-plan">
     <p class="hint">Paste an existing certificate (PEM) — its SANs are collapsed into the minimal record plan, grouped by zone.</p>
     <label>Certificate (PEM)</label>
     <textarea id="pl-cert" rows="6" placeholder="-----BEGIN CERTIFICATE-----"></textarea>
